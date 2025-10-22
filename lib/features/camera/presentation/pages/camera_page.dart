@@ -6,6 +6,7 @@ import 'package:permission_handler/permission_handler.dart';
 import '../providers/camera_provider.dart';
 import '../widgets/camera_preview_widget.dart';
 import '../widgets/shutter_button.dart';
+import '../widgets/flash_button.dart';
 import '../../../../core/theme/colors.dart' as app_colors;
 import '../../../camera/domain/entities/camera_settings.dart' as domain;
 
@@ -42,7 +43,7 @@ class _CameraPageState extends ConsumerState<CameraPage> {
       );
     }
 
-    final settings = const domain.CameraSettings();
+    final settings = domain.CameraSettings(flashMode: state.flashMode);
 
     return Scaffold(
       backgroundColor: Colors.black,
@@ -50,6 +51,18 @@ class _CameraPageState extends ConsumerState<CameraPage> {
         fit: StackFit.expand,
         children: [
           CameraPreviewWidget(controller: state.controller!),
+          // Flash toggle button - top left
+          Positioned(
+            top: 48,
+            left: 16,
+            child: SafeArea(
+              child: FlashButton(
+                flashMode: state.flashMode,
+                onToggle: () => ref.read(cameraProvider.notifier).toggleFlashMode(),
+              ),
+            ),
+          ),
+          // Shutter and video controls - bottom center
           Positioned(
             bottom: 32,
             left: 0,

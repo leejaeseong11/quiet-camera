@@ -18,6 +18,7 @@ class CameraState {
   final CameraController? controller;
   final String? lastCapturePath;
   final String? error;
+  final domain.FlashMode flashMode;
 
   const CameraState({
     required this.isInitialized,
@@ -27,6 +28,7 @@ class CameraState {
     this.controller,
     this.lastCapturePath,
     this.error,
+    this.flashMode = domain.FlashMode.auto,
   });
 
   CameraState copyWith({
@@ -37,6 +39,7 @@ class CameraState {
     CameraController? controller,
     String? lastCapturePath,
     String? error,
+    domain.FlashMode? flashMode,
   }) {
     return CameraState(
       isInitialized: isInitialized ?? this.isInitialized,
@@ -46,6 +49,7 @@ class CameraState {
       controller: controller ?? this.controller,
       lastCapturePath: lastCapturePath ?? this.lastCapturePath,
       error: error,
+      flashMode: flashMode ?? this.flashMode,
     );
   }
 
@@ -53,6 +57,7 @@ class CameraState {
         isInitialized: false,
         hasPermission: false,
         isRecording: false,
+        flashMode: domain.FlashMode.auto,
       );
 }
 
@@ -142,6 +147,17 @@ class CameraNotifier extends StateNotifier<CameraState> {
       state = state.copyWith(error: 'Failed to stop video: $e');
       return null;
     }
+  }
+
+  void toggleFlashMode() {
+    final modes = domain.FlashMode.values;
+    final currentIndex = modes.indexOf(state.flashMode);
+    final nextIndex = (currentIndex + 1) % modes.length;
+    state = state.copyWith(flashMode: modes[nextIndex]);
+  }
+
+  void setFlashMode(domain.FlashMode mode) {
+    state = state.copyWith(flashMode: mode);
   }
 
   // Mapping helpers

@@ -7,6 +7,7 @@ import '../providers/camera_provider.dart';
 import '../widgets/camera_preview_widget.dart';
 import '../widgets/shutter_button.dart';
 import '../widgets/flash_button.dart';
+import '../widgets/camera_switch_button.dart';
 import '../../../../core/theme/colors.dart' as app_colors;
 import '../../../camera/domain/entities/camera_settings.dart' as domain;
 
@@ -59,6 +60,16 @@ class _CameraPageState extends ConsumerState<CameraPage> {
               child: FlashButton(
                 flashMode: state.flashMode,
                 onToggle: () => ref.read(cameraProvider.notifier).toggleFlashMode(),
+              ),
+            ),
+          ),
+          // Camera switch button - top right
+          Positioned(
+            top: 48,
+            right: 16,
+            child: SafeArea(
+              child: CameraSwitchButton(
+                onSwitch: () => ref.read(cameraProvider.notifier).switchCamera(),
               ),
             ),
           ),

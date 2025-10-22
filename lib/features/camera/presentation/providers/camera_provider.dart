@@ -104,6 +104,47 @@ class CameraNotifier extends StateNotifier<CameraState> {
     state = CameraState.initial();
   }
 
+  Future<void> switchCamera() async {
+    try {
+      if (!state.isInitialized) return;
+
+      // Dispose current controller
+      await state.controller?.dispose();
+
+      // Get available cameras
+      final cameras = await availableCameras();
+      
+      // Toggle lens direction
+      final currentLens = state.description?.lensDirection ?? CameraLensDirection.back;
+      final targetLens = currentLens == CameraLensDirection.back 
+          ? CameraLensDirection.front 
+          : CameraLensDirection.back;
+      
+      // Find camera with target lens
+      final targetCamera = cameras.firstWhere(
+        (c) => c.lensDirection == targetLens,
+        orElse: () => cameras.first,
+      );
+
+      // Create new controller
+      final controller = CameraController(
+        targetCamera,
+        ResolutionPreset.max,
+        enableAudio: true,
+      );
+      await controller.initialize();
+
+      state = state.copyWith(
+        description: targetCamera,
+        controller: controller,
+        isInitialized: true,
+      );
+    } catch (e, st) {
+      Logger.error('Camera switch failed', tag: 'Camera', error: e, stackTrace: st);
+      state = state.copyWith(error: 'Camera switch failed: $e');
+    }
+  }
+
   Future<String?> capturePhoto(domain.CameraSettings settings) async {
     try {
       if (!state.isInitialized) return null;

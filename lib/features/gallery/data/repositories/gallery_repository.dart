@@ -27,18 +27,14 @@ class GalleryRepository {
         title: _generateTitle('IMG'),
       );
 
-      if (asset == null) {
-        Logger.error('Failed to save image to gallery', tag: 'Gallery');
-        return false;
-      }
-
-      // Add to custom album
+      // Optionally add to album (no-op placeholder)
       await _addToAlbum(asset);
 
       Logger.info('Image saved to gallery: ${asset.id}', tag: 'Gallery');
       return true;
     } catch (e, st) {
-      Logger.error('Error saving image to gallery', tag: 'Gallery', error: e, stackTrace: st);
+      Logger.error('Error saving image to gallery',
+          tag: 'Gallery', error: e, stackTrace: st);
       return false;
     }
   }
@@ -65,18 +61,14 @@ class GalleryRepository {
         title: _generateTitle('VID'),
       );
 
-      if (asset == null) {
-        Logger.error('Failed to save video to gallery', tag: 'Gallery');
-        return false;
-      }
-
-      // Add to custom album
+      // Optionally add to album (no-op placeholder)
       await _addToAlbum(asset);
 
       Logger.info('Video saved to gallery: ${asset.id}', tag: 'Gallery');
       return true;
     } catch (e, st) {
-      Logger.error('Error saving video to gallery', tag: 'Gallery', error: e, stackTrace: st);
+      Logger.error('Error saving video to gallery',
+          tag: 'Gallery', error: e, stackTrace: st);
       return false;
     }
   }
@@ -87,52 +79,17 @@ class GalleryRepository {
     return result.isAuth || result.hasAccess;
   }
 
-  /// Add asset to custom album
+  /// Add asset to custom album (currently no-op to avoid platform-specific API)
   Future<void> _addToAlbum(AssetEntity asset) async {
-    try {
-      // Get or create album
-      final albums = await PhotoManager.getAssetPathList(
-        type: RequestType.common,
-        filterOption: FilterOptionGroup(
-          containsPathModified: true,
-        ),
-      );
-
-      AssetPathEntity? targetAlbum;
-      for (final album in albums) {
-        if (await album.name == albumName) {
-          targetAlbum = album;
-          break;
-        }
-      }
-
-      // Create album if it doesn't exist (iOS)
-      if (targetAlbum == null) {
-        if (Platform.isIOS) {
-          await PhotoManager.editor.iOS.createAlbum(
-            albumName,
-            assets: [asset],
-          );
-        }
-      } else {
-        // Add to existing album (iOS only, Android doesn't support custom albums)
-        if (Platform.isIOS) {
-          await PhotoManager.editor.iOS.addToAlbum(
-            [asset],
-            targetAlbum,
-          );
-        }
-      }
-    } catch (e, st) {
-      Logger.error('Error adding to album', tag: 'Gallery', error: e, stackTrace: st);
-      // Non-critical error, continue
-    }
+    // Implement album creation via platform channels if needed.
+    return;
   }
 
   /// Generate unique title for media
   String _generateTitle(String prefix) {
     final now = DateTime.now();
-    final timestamp = '${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}_'
+    final timestamp =
+        '${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}_'
         '${now.hour.toString().padLeft(2, '0')}${now.minute.toString().padLeft(2, '0')}${now.second.toString().padLeft(2, '0')}';
     return '${prefix}_$timestamp';
   }

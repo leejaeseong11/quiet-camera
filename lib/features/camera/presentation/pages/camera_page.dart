@@ -1,4 +1,3 @@
-import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -8,7 +7,6 @@ import '../widgets/camera_preview_widget.dart';
 import '../widgets/shutter_button.dart';
 import '../widgets/flash_button.dart';
 import '../widgets/camera_switch_button.dart';
-import '../../../../core/theme/colors.dart' as app_colors;
 import '../../../camera/domain/entities/camera_settings.dart' as domain;
 
 class CameraPage extends ConsumerStatefulWidget {
@@ -44,7 +42,9 @@ class _CameraPageState extends ConsumerState<CameraPage> {
       );
     }
 
-    final settings = domain.CameraSettings(flashMode: state.flashMode);
+    final settings = domain.CameraSettings.defaults().copyWith(
+      flashMode: state.flashMode,
+    );
 
     return Scaffold(
       backgroundColor: Colors.black,
@@ -59,7 +59,8 @@ class _CameraPageState extends ConsumerState<CameraPage> {
             child: SafeArea(
               child: FlashButton(
                 flashMode: state.flashMode,
-                onToggle: () => ref.read(cameraProvider.notifier).toggleFlashMode(),
+                onToggle: () =>
+                    ref.read(cameraProvider.notifier).toggleFlashMode(),
               ),
             ),
           ),
@@ -69,7 +70,8 @@ class _CameraPageState extends ConsumerState<CameraPage> {
             right: 16,
             child: SafeArea(
               child: CameraSwitchButton(
-                onSwitch: () => ref.read(cameraProvider.notifier).switchCamera(),
+                onSwitch: () =>
+                    ref.read(cameraProvider.notifier).switchCamera(),
               ),
             ),
           ),
@@ -83,7 +85,9 @@ class _CameraPageState extends ConsumerState<CameraPage> {
               children: [
                 ShutterButton(
                   onTap: () async {
-                    final path = await ref.read(cameraProvider.notifier).capturePhoto(settings);
+                    final path = await ref
+                        .read(cameraProvider.notifier)
+                        .capturePhoto(settings);
                     if (!mounted) return;
                     if (path != null) {
                       ScaffoldMessenger.of(context).showSnackBar(
@@ -95,7 +99,8 @@ class _CameraPageState extends ConsumerState<CameraPage> {
                 const SizedBox(width: 24),
                 _VideoButton(
                   isRecording: state.isRecording,
-                  onStart: () => ref.read(cameraProvider.notifier).startVideo(settings),
+                  onStart: () =>
+                      ref.read(cameraProvider.notifier).startVideo(settings),
                   onStop: () => ref.read(cameraProvider.notifier).stopVideo(),
                 ),
               ],
@@ -143,7 +148,8 @@ class _PermissionView extends StatelessWidget {
 }
 
 class _VideoButton extends StatelessWidget {
-  const _VideoButton({required this.isRecording, required this.onStart, required this.onStop});
+  const _VideoButton(
+      {required this.isRecording, required this.onStart, required this.onStop});
   final bool isRecording;
   final VoidCallback onStart;
   final Future<void> Function() onStop;

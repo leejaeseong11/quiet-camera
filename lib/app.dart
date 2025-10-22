@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'core/theme/app_theme.dart';
+import 'features/camera/presentation/pages/camera_page.dart';
 
 class QuietCameraApp extends StatelessWidget {
   const QuietCameraApp({super.key});
@@ -11,14 +12,7 @@ class QuietCameraApp extends StatelessWidget {
       theme: AppTheme.lightTheme,
       darkTheme: AppTheme.darkTheme,
       themeMode: ThemeMode.dark,
-      home: const Scaffold(
-        body: Center(
-          child: Text(
-            'Quiet Camera',
-            style: TextStyle(fontSize: 24),
-          ),
-        ),
-      ),
+      home: const CameraPage(),
     );
   }
 }

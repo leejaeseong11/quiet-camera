@@ -9,6 +9,7 @@ import '../../../../core/utils/logger.dart';
 import '../../../../core/error/exceptions.dart';
 import '../../../../platform/silent_shutter_native.dart';
 import '../../../camera/domain/entities/camera_settings.dart' as domain;
+import '../../../gallery/data/repositories/gallery_repository.dart';
 
 class CameraState {
   final bool isInitialized;
@@ -65,6 +66,7 @@ class CameraNotifier extends StateNotifier<CameraState> {
   CameraNotifier() : super(CameraState.initial());
 
   final _silent = SilentShutterNative();
+  final _gallery = GalleryRepository();
 
   Future<void> requestPermissions() async {
     final statuses = await [Permission.camera, Permission.microphone, Permission.photos].request();
@@ -154,6 +156,12 @@ class CameraNotifier extends StateNotifier<CameraState> {
         flashMode: _mapFlash(settings.flashMode),
         resolution: _mapResolution(settings.resolution),
       );
+      
+      // Save to gallery
+      if (path.isNotEmpty) {
+        await _gallery.saveImage(path);
+      }
+      
       state = state.copyWith(lastCapturePath: path);
       return path;
     } on CameraException catch (e) {
@@ -182,6 +190,12 @@ class CameraNotifier extends StateNotifier<CameraState> {
     try {
       if (!state.isRecording) return null;
       final path = await _silent.stopSilentVideo();
+      
+      // Save to gallery
+      if (path.isNotEmpty) {
+        await _gallery.saveVideo(path);
+      }
+      
       state = state.copyWith(isRecording: false, lastCapturePath: path);
       return path;
     } catch (e) {

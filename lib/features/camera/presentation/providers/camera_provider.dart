@@ -31,7 +31,7 @@ class CameraState {
     this.controller,
     this.lastCapturePath,
     this.error,
-    this.flashMode = domain.FlashMode.auto,
+    this.flashMode = domain.FlashMode.off,
     this.currentZoom = 1.0,
     this.minZoom = 1.0,
     this.maxZoom = 1.0,
@@ -69,7 +69,7 @@ class CameraState {
         isInitialized: false,
         hasPermission: false,
         isRecording: false,
-        flashMode: domain.FlashMode.auto,
+        flashMode: domain.FlashMode.off,
       );
 }
 

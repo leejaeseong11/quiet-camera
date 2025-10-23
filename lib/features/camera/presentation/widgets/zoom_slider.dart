@@ -85,32 +85,15 @@ class _ZoomSliderState extends ConsumerState<ZoomSlider>
     // Calculate effective max zoom (up to 8x for good quality)
     final effectiveMaxZoom = widget.maxZoom.clamp(widget.minZoom, 8.0);
 
-    // Don't render if not visible (optimization)
+    // Don't render if not visible or zoom not available
     if (!widget.isVisible && _animationController.value == 0.0) {
       return const SizedBox.shrink();
     }
 
-    // If camera doesn't support zoom, show a message
+    // Don't render if camera doesn't support zoom
     if (widget.minZoom >= widget.maxZoom ||
         effectiveMaxZoom <= widget.minZoom) {
-      return FadeTransition(
-        opacity: _fadeAnimation,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-          decoration: BoxDecoration(
-            color: Colors.black.withOpacity(0.7),
-            borderRadius: BorderRadius.circular(20),
-          ),
-          child: const Text(
-            'Zoom not available',
-            style: TextStyle(
-              color: Colors.white70,
-              fontSize: 12,
-              fontFamily: 'SF Pro',
-            ),
-          ),
-        ),
-      );
+      return const SizedBox.shrink();
     }
 
     return FadeTransition(

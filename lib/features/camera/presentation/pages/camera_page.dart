@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -25,6 +27,8 @@ class CameraPage extends ConsumerStatefulWidget {
 class _CameraPageState extends ConsumerState<CameraPage> {
   double _baseZoom = 1.0;
   bool _showZoomIndicator = false;
+  bool _showZoomSlider = false;
+  Timer? _zoomHideTimer;
 
   @override
   void initState() {
@@ -35,8 +39,35 @@ class _CameraPageState extends ConsumerState<CameraPage> {
     });
   }
 
+  @override
+  void dispose() {
+    _zoomHideTimer?.cancel();
+    super.dispose();
+  }
+
+  void _showZoomUI() {
+    setState(() {
+      _showZoomIndicator = true;
+      _showZoomSlider = true;
+    });
+
+    // Cancel existing timer
+    _zoomHideTimer?.cancel();
+
+    // Auto-hide after 2 seconds of inactivity
+    _zoomHideTimer = Timer(const Duration(seconds: 2), () {
+      if (mounted) {
+        setState(() {
+          _showZoomIndicator = false;
+          _showZoomSlider = false;
+        });
+      }
+    });
+  }
+
   void _handleScaleStart(ScaleStartDetails details) {
     _baseZoom = ref.read(cameraProvider).currentZoom;
+    _showZoomUI();
   }
 
   void _handleScaleUpdate(ScaleUpdateDetails details) {
@@ -47,21 +78,11 @@ class _CameraPageState extends ConsumerState<CameraPage> {
         (_baseZoom * details.scale).clamp(state.minZoom, state.maxZoom);
 
     ref.read(cameraProvider.notifier).setZoom(newZoom);
-
-    setState(() {
-      _showZoomIndicator = true;
-    });
+    _showZoomUI();
   }
 
   void _handleScaleEnd(ScaleEndDetails details) {
-    // Hide zoom indicator after a delay
-    Future.delayed(const Duration(milliseconds: 100), () {
-      if (mounted) {
-        setState(() {
-          _showZoomIndicator = false;
-        });
-      }
-    });
+    // Timer in _showZoomUI will handle auto-hide
   }
 
   @override
@@ -135,7 +156,7 @@ class _CameraPageState extends ConsumerState<CameraPage> {
                 ),
               ),
             ),
-            // Zoom slider - above shutter button
+            // Zoom slider - above shutter button (auto-hide)
             Positioned(
               bottom: 120,
               left: 0,
@@ -145,19 +166,10 @@ class _CameraPageState extends ConsumerState<CameraPage> {
                   currentZoom: state.currentZoom,
                   minZoom: state.minZoom,
                   maxZoom: state.maxZoom,
+                  isVisible: _showZoomSlider,
                   onZoomChanged: (zoom) {
                     ref.read(cameraProvider.notifier).setZoom(zoom);
-                    setState(() {
-                      _showZoomIndicator = true;
-                    });
-                    // Hide after delay
-                    Future.delayed(const Duration(milliseconds: 100), () {
-                      if (mounted) {
-                        setState(() {
-                          _showZoomIndicator = false;
-                        });
-                      }
-                    });
+                    _showZoomUI();
                   },
                 ),
               ),

@@ -4,6 +4,9 @@ import AVFoundation
 
 @main
 @objc class AppDelegate: FlutterAppDelegate {
+    // Keep a strong reference to handler to avoid deallocation
+    private var silentCameraHandler: SilentCameraHandler?
+    
     override func application(
         _ application: UIApplication,
         didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
@@ -14,12 +17,12 @@ import AVFoundation
             binaryMessenger: controller.binaryMessenger
         )
         
-        let silentCameraHandler = SilentCameraHandler()
+        // Initialize native handler once and retain
+        self.silentCameraHandler = SilentCameraHandler()
         
         silentCameraChannel.setMethodCallHandler({
-            [weak silentCameraHandler] (call: FlutterMethodCall, result: @escaping FlutterResult) -> Void in
-            
-            guard let handler = silentCameraHandler else {
+            [weak self] (call: FlutterMethodCall, result: @escaping FlutterResult) -> Void in
+            guard let handler = self?.silentCameraHandler else {
                 result(FlutterError(code: "UNAVAILABLE", message: "Handler not available", details: nil))
                 return
             }

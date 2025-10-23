@@ -30,7 +30,10 @@ class GalleryRepository {
       // Optionally add to album (no-op placeholder)
       await _addToAlbum(asset);
 
-      Logger.info('Image saved to gallery: ${asset.id}', tag: 'Gallery');
+  // Optionally delete temp file after saving
+  try { await file.delete(); } catch (_) {}
+
+  Logger.info('Image saved to gallery: ${asset.id}', tag: 'Gallery');
       return true;
     } catch (e, st) {
       Logger.error('Error saving image to gallery',
@@ -64,7 +67,10 @@ class GalleryRepository {
       // Optionally add to album (no-op placeholder)
       await _addToAlbum(asset);
 
-      Logger.info('Video saved to gallery: ${asset.id}', tag: 'Gallery');
+  // Optionally delete temp file after saving
+  try { await file.delete(); } catch (_) {}
+
+  Logger.info('Video saved to gallery: ${asset.id}', tag: 'Gallery');
       return true;
     } catch (e, st) {
       Logger.error('Error saving video to gallery',

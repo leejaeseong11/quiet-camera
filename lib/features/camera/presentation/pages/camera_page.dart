@@ -20,8 +20,12 @@ class _CameraPageState extends ConsumerState<CameraPage> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      ref.read(cameraProvider.notifier).initialize();
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      // Request permissions first, then initialize
+      await ref.read(cameraProvider.notifier).requestPermissions();
+      if (mounted) {
+        await ref.read(cameraProvider.notifier).initialize();
+      }
     });
   }
 
@@ -30,10 +34,20 @@ class _CameraPageState extends ConsumerState<CameraPage> {
     final state = ref.watch(cameraProvider);
 
     if (!state.hasPermission) {
-      return _PermissionView(onRequest: () async {
-        await openAppSettings();
-        ref.read(cameraProvider.notifier).initialize();
-      });
+      return _PermissionView(
+        onRequest: () async {
+          await ref.read(cameraProvider.notifier).requestPermissions();
+          if (mounted) {
+            final hasPermission = ref.read(cameraProvider).hasPermission;
+            if (hasPermission) {
+              await ref.read(cameraProvider.notifier).initialize();
+            } else {
+              // If still no permission, open settings
+              await openAppSettings();
+            }
+          }
+        },
+      );
     }
 
     if (!state.isInitialized) {
@@ -131,14 +145,14 @@ class _PermissionView extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             const Text(
-              '설정에서 카메라/마이크/사진 권한을 허용해주세요.',
+              '카메라, 마이크, 사진 권한을\n허용해주세요.',
               style: TextStyle(color: Colors.white60),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 20),
             ElevatedButton(
               onPressed: onRequest,
-              child: const Text('설정 열기'),
+              child: const Text('권한 요청'),
             )
           ],
         ),

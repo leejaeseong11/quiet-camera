@@ -22,6 +22,8 @@ class CameraState {
   final double currentZoom;
   final double minZoom;
   final double maxZoom;
+  final int? timerSeconds; // null = off, 3/5/10 = timer duration
+  final int? countdownSeconds; // current countdown value
 
   const CameraState({
     required this.isInitialized,
@@ -35,6 +37,8 @@ class CameraState {
     this.currentZoom = 1.0,
     this.minZoom = 1.0,
     this.maxZoom = 1.0,
+    this.timerSeconds,
+    this.countdownSeconds,
   });
 
   CameraState copyWith({
@@ -49,6 +53,8 @@ class CameraState {
     double? currentZoom,
     double? minZoom,
     double? maxZoom,
+    int? timerSeconds,
+    int? countdownSeconds,
   }) {
     return CameraState(
       isInitialized: isInitialized ?? this.isInitialized,
@@ -62,6 +68,8 @@ class CameraState {
       currentZoom: currentZoom ?? this.currentZoom,
       minZoom: minZoom ?? this.minZoom,
       maxZoom: maxZoom ?? this.maxZoom,
+      timerSeconds: timerSeconds ?? this.timerSeconds,
+      countdownSeconds: countdownSeconds ?? this.countdownSeconds,
     );
   }
 
@@ -328,6 +336,48 @@ class CameraNotifier extends StateNotifier<CameraState> {
     final newZoom =
         (state.currentZoom * scale).clamp(state.minZoom, state.maxZoom);
     setZoom(newZoom);
+  }
+
+  /// Toggle timer between Off -> 3s -> 5s -> 10s -> Off
+  void toggleTimer() {
+    final int? nextTimer;
+    switch (state.timerSeconds) {
+      case null:
+        nextTimer = 3;
+        break;
+      case 3:
+        nextTimer = 5;
+        break;
+      case 5:
+        nextTimer = 10;
+        break;
+      case 10:
+      default:
+        nextTimer = null;
+        break;
+    }
+    state = state.copyWith(timerSeconds: nextTimer);
+    Logger.info('Timer set to: ${nextTimer ?? "OFF"}', tag: 'Camera');
+  }
+
+  /// Start timer countdown and capture photo
+  Future<String?> capturePhotoWithTimer(domain.CameraSettings settings) async {
+    if (state.timerSeconds == null) {
+      // No timer, capture immediately
+      return capturePhoto(settings);
+    }
+
+    // Start countdown
+    var countdown = state.timerSeconds!;
+    while (countdown > 0) {
+      state = state.copyWith(countdownSeconds: countdown);
+      await Future.delayed(const Duration(seconds: 1));
+      countdown--;
+    }
+
+    // Clear countdown and capture
+    state = state.copyWith(countdownSeconds: null);
+    return capturePhoto(settings);
   }
 }
 

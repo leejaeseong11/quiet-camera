@@ -13,6 +13,8 @@ import '../widgets/camera_switch_button.dart';
 import '../widgets/zoom_slider.dart';
 import '../widgets/zoom_level_indicator.dart';
 import '../widgets/recording_timer.dart';
+import '../widgets/timer_button.dart';
+import '../widgets/timer_countdown.dart';
 import '../../../camera/domain/entities/camera_settings.dart' as domain;
 import '../../../gallery/presentation/widgets/gallery_thumbnail.dart';
 import '../../../gallery/presentation/pages/gallery_view_page.dart';
@@ -122,6 +124,10 @@ class _CameraPageState extends ConsumerState<CameraPage> {
           children: [
             CameraPreviewWidget(controller: state.controller!),
 
+            // Timer countdown overlay (center of screen)
+            if (state.countdownSeconds != null)
+              TimerCountdown(seconds: state.countdownSeconds!),
+
             // Zoom level indicator (center of screen)
             if (_showZoomIndicator)
               ZoomLevelIndicator(zoomLevel: state.currentZoom),
@@ -143,10 +149,20 @@ class _CameraPageState extends ConsumerState<CameraPage> {
               top: 48,
               left: 16,
               child: SafeArea(
-                child: FlashButton(
-                  flashMode: state.flashMode,
-                  onToggle: () =>
-                      ref.read(cameraProvider.notifier).toggleFlashMode(),
+                child: Row(
+                  children: [
+                    FlashButton(
+                      flashMode: state.flashMode,
+                      onToggle: () =>
+                          ref.read(cameraProvider.notifier).toggleFlashMode(),
+                    ),
+                    const SizedBox(width: 8),
+                    TimerButton(
+                      timerSeconds: state.timerSeconds,
+                      onToggle: () =>
+                          ref.read(cameraProvider.notifier).toggleTimer(),
+                    ),
+                  ],
                 ),
               ),
             ),
@@ -218,7 +234,7 @@ class _CameraPageState extends ConsumerState<CameraPage> {
                     onTap: () async {
                       final path = await ref
                           .read(cameraProvider.notifier)
-                          .capturePhoto(settings);
+                          .capturePhotoWithTimer(settings);
                       if (!mounted) return;
                       if (path != null) {
                         // Refresh gallery thumbnail

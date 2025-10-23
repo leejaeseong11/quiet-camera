@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:camera/camera.dart';
 // import 'package:flutter/material.dart';
@@ -107,13 +108,21 @@ class CameraNotifier extends StateNotifier<CameraState> {
   final _gallery = GalleryRepository();
 
   Future<void> requestPermissions() async {
-    final statuses = await [
-      Permission.camera,
-      Permission.microphone,
-      Permission.photos
-    ].request();
-    final has = statuses[Permission.camera]?.isGranted == true;
+    // Request sequentially to ensure iOS shows all prompts reliably
+    final cam = await Permission.camera.request();
+    final mic = await Permission.microphone.request();
+    // On iOS 14+, photosAddOnly may be needed for saving only
+    PermissionStatus photosStatus = await Permission.photos.request();
+    if (!photosStatus.isGranted && Platform.isIOS) {
+      photosStatus = await Permission.photosAddOnly.request();
+    }
+
+    final has = cam.isGranted;
     state = state.copyWith(hasPermission: has);
+    Logger.debug(
+      'Permissions -> camera: ${cam.isGranted}, mic: ${mic.isGranted}, photos: ${photosStatus.isGranted}',
+      tag: 'Permissions',
+    );
   }
 
   Future<void> initialize() async {

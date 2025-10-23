@@ -10,11 +10,11 @@ import '../widgets/camera_preview_widget.dart';
 import '../widgets/shutter_button.dart';
 import '../widgets/flash_button.dart';
 import '../widgets/camera_switch_button.dart';
-import '../widgets/zoom_slider.dart';
-import '../widgets/zoom_level_indicator.dart';
 import '../widgets/recording_timer.dart';
 import '../widgets/timer_button.dart';
 import '../widgets/timer_countdown.dart';
+import '../widgets/mode_selector.dart';
+import '../widgets/zoom_scrubber.dart';
 import '../../../camera/domain/entities/camera_settings.dart' as domain;
 import '../../../gallery/presentation/widgets/gallery_thumbnail.dart';
 import '../../../gallery/presentation/pages/gallery_view_page.dart';
@@ -29,9 +29,8 @@ class CameraPage extends ConsumerStatefulWidget {
 
 class _CameraPageState extends ConsumerState<CameraPage> {
   double _baseZoom = 1.0;
-  bool _showZoomIndicator = false;
-  bool _showZoomSlider = false;
   Timer? _zoomHideTimer;
+  double _hDragAccum = 0.0;
 
   @override
   void initState() {
@@ -48,30 +47,10 @@ class _CameraPageState extends ConsumerState<CameraPage> {
     super.dispose();
   }
 
-  void _showZoomUI() {
-    setState(() {
-      _showZoomIndicator = true;
-      _showZoomSlider = true;
-    });
-
-    // Cancel existing timer
-    _zoomHideTimer?.cancel();
-
-    // Auto-hide after 2 seconds of inactivity
-    _zoomHideTimer = Timer(const Duration(seconds: 2), () {
-      if (mounted) {
-        setState(() {
-          _showZoomIndicator = false;
-          _showZoomSlider = false;
-        });
-      }
-    });
-  }
-
   void _handleScaleStart(ScaleStartDetails details) {
     _baseZoom = ref.read(cameraProvider).currentZoom;
     Logger.info('Pinch zoom started: baseZoom=$_baseZoom', tag: 'CameraPage');
-    _showZoomUI();
+    _showZoomTemporarily();
   }
 
   void _handleScaleUpdate(ScaleUpdateDetails details) {
@@ -84,12 +63,39 @@ class _CameraPageState extends ConsumerState<CameraPage> {
     Logger.info('Pinch zoom update: scale=${details.scale}, newZoom=$newZoom',
         tag: 'CameraPage');
     ref.read(cameraProvider.notifier).setZoom(newZoom);
-    _showZoomUI();
+    _showZoomTemporarily();
   }
 
   void _handleScaleEnd(ScaleEndDetails details) {
     Logger.info('Pinch zoom ended', tag: 'CameraPage');
-    // Timer in _showZoomUI will handle auto-hide
+  }
+
+  void _handleTapDown(TapDownDetails details) {
+    _showZoomTemporarily();
+  }
+
+  void _onHorizontalDragStart(DragStartDetails d) {
+    _hDragAccum = 0.0;
+    _showZoomTemporarily();
+  }
+
+  void _onHorizontalDragUpdate(DragUpdateDetails d) {
+    _hDragAccum += d.primaryDelta ?? 0.0;
+  }
+
+  void _onHorizontalDragEnd(DragEndDetails d) {
+    // Screen-level swipe to change capture mode
+    final vx = d.velocity.pixelsPerSecond.dx;
+    const distanceThreshold = 40.0;
+    if (vx > 150 || _hDragAccum > distanceThreshold) {
+      ref
+          .read(cameraProvider.notifier)
+          .setCaptureMode(domain.CaptureMode.video);
+    } else if (vx < -150 || _hDragAccum < -distanceThreshold) {
+      ref
+          .read(cameraProvider.notifier)
+          .setCaptureMode(domain.CaptureMode.photo);
+    }
   }
 
   @override
@@ -119,6 +125,10 @@ class _CameraPageState extends ConsumerState<CameraPage> {
         onScaleStart: _handleScaleStart,
         onScaleUpdate: _handleScaleUpdate,
         onScaleEnd: _handleScaleEnd,
+        onTapDown: _handleTapDown,
+        onHorizontalDragStart: _onHorizontalDragStart,
+        onHorizontalDragUpdate: _onHorizontalDragUpdate,
+        onHorizontalDragEnd: _onHorizontalDragEnd,
         child: Stack(
           fit: StackFit.expand,
           children: [
@@ -128,13 +138,21 @@ class _CameraPageState extends ConsumerState<CameraPage> {
             if (state.countdownSeconds != null)
               TimerCountdown(seconds: state.countdownSeconds!),
 
-            // Zoom level indicator (center of screen)
-            if (_showZoomIndicator)
-              ZoomLevelIndicator(zoomLevel: state.currentZoom),
-
-            // Recording timer - top center
+            // Mode selector - top center
             Positioned(
               top: 48,
+              left: 0,
+              right: 0,
+              child: SafeArea(
+                child: Center(
+                  child: ModeSelector(),
+                ),
+              ),
+            ),
+
+            // Recording timer - below mode selector
+            Positioned(
+              top: 100,
               left: 0,
               right: 0,
               child: SafeArea(
@@ -156,12 +174,6 @@ class _CameraPageState extends ConsumerState<CameraPage> {
                       onToggle: () =>
                           ref.read(cameraProvider.notifier).toggleFlashMode(),
                     ),
-                    const SizedBox(width: 8),
-                    TimerButton(
-                      timerSeconds: state.timerSeconds,
-                      onToggle: () =>
-                          ref.read(cameraProvider.notifier).toggleTimer(),
-                    ),
                   ],
                 ),
               ),
@@ -177,24 +189,18 @@ class _CameraPageState extends ConsumerState<CameraPage> {
                 ),
               ),
             ),
-            // Zoom slider - above shutter button (auto-hide)
-            Positioned(
-              bottom: 120,
-              left: 0,
-              right: 0,
-              child: Center(
-                child: ZoomSlider(
-                  currentZoom: state.currentZoom,
-                  minZoom: state.minZoom,
-                  maxZoom: state.maxZoom,
-                  isVisible: _showZoomSlider,
-                  onZoomChanged: (zoom) {
-                    ref.read(cameraProvider.notifier).setZoom(zoom);
-                    _showZoomUI();
-                  },
+            // Zoom scrubber - appears on interaction only
+            if (state.isZoomUIVisible)
+              Positioned(
+                bottom: 140,
+                left: 0,
+                right: 0,
+                child: Center(
+                  child: ZoomScrubber(
+                    onInteract: _showZoomTemporarily,
+                  ),
                 ),
               ),
-            ),
             // Shutter and video controls - bottom center
             Positioned(
               bottom: 32,
@@ -229,39 +235,19 @@ class _CameraPageState extends ConsumerState<CameraPage> {
                     ),
                   ),
 
-                  // Shutter button - center
-                  ShutterButton(
-                    onTap: () async {
-                      final path = await ref
-                          .read(cameraProvider.notifier)
-                          .capturePhotoWithTimer(settings);
-                      if (!mounted) return;
-                      if (path != null) {
-                        // Refresh gallery thumbnail
-                        ref.read(latestAssetProvider.notifier).refresh();
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text('Saved: $path')),
-                        );
-                      }
-                    },
-                  ),
+                  // Shutter button - center, behavior depends on mode
+                  _ModeAwareShutter(settings: settings),
 
-                  // Video button - right side
+                  // Right side: timer button only
                   Expanded(
                     child: Align(
                       alignment: Alignment.centerRight,
                       child: Padding(
                         padding: const EdgeInsets.only(right: 32),
-                        child: _VideoButton(
-                          isRecording: state.isRecording,
-                          onStart: () => ref
-                              .read(cameraProvider.notifier)
-                              .startVideo(settings),
-                          onStop: () async {
-                            await ref.read(cameraProvider.notifier).stopVideo();
-                            // Refresh gallery thumbnail after video
-                            ref.read(latestAssetProvider.notifier).refresh();
-                          },
+                        child: TimerButton(
+                          timerSeconds: state.timerSeconds,
+                          onToggle: () =>
+                              ref.read(cameraProvider.notifier).toggleTimer(),
                         ),
                       ),
                     ),
@@ -273,6 +259,18 @@ class _CameraPageState extends ConsumerState<CameraPage> {
         ),
       ),
     );
+  }
+}
+
+extension _ZoomVisibility on _CameraPageState {
+  void _showZoomTemporarily() {
+    ref.read(cameraProvider.notifier).setZoomUIVisible(true);
+    _zoomHideTimer?.cancel();
+    _zoomHideTimer = Timer(const Duration(seconds: 2), () {
+      if (mounted) {
+        ref.read(cameraProvider.notifier).setZoomUIVisible(false);
+      }
+    });
   }
 }
 
@@ -311,31 +309,35 @@ class _PermissionView extends StatelessWidget {
   }
 }
 
-class _VideoButton extends StatelessWidget {
-  const _VideoButton(
-      {required this.isRecording, required this.onStart, required this.onStop});
-  final bool isRecording;
-  final VoidCallback onStart;
-  final Future<void> Function() onStop;
+class _ModeAwareShutter extends ConsumerWidget {
+  const _ModeAwareShutter({required this.settings});
+  final domain.CameraSettings settings;
   @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
+  Widget build(BuildContext context, WidgetRef ref) {
+    final state = ref.watch(cameraProvider);
+    final notifier = ref.read(cameraProvider.notifier);
+
+    return ShutterButton(
+      isRecording:
+          state.captureMode == domain.CaptureMode.video && state.isRecording,
       onTap: () async {
-        if (isRecording) {
-          await onStop();
+        if (state.captureMode == domain.CaptureMode.photo) {
+          final path = await notifier.capturePhotoWithTimer(settings);
+          if (context.mounted && path != null) {
+            ref.read(latestAssetProvider.notifier).refresh();
+            ScaffoldMessenger.of(context)
+                .showSnackBar(SnackBar(content: Text('Saved: $path')));
+          }
         } else {
-          onStart();
+          // Video mode: toggle start/stop
+          if (!state.isRecording) {
+            await notifier.startVideo(settings);
+          } else {
+            await notifier.stopVideo();
+            ref.read(latestAssetProvider.notifier).refresh();
+          }
         }
       },
-      child: Container(
-        width: 58,
-        height: 58,
-        decoration: BoxDecoration(
-          color: isRecording ? Colors.red : Colors.transparent,
-          border: Border.all(color: Colors.white, width: 3),
-          shape: BoxShape.circle,
-        ),
-      ),
     );
   }
 }

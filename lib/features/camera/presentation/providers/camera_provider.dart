@@ -10,10 +10,16 @@ import '../../../../platform/silent_shutter_native.dart';
 import '../../../camera/domain/entities/camera_settings.dart' as domain;
 import '../../../gallery/data/repositories/gallery_repository.dart';
 
+// Sentinel class for nullable parameter handling in copyWith
+class _Sentinel {
+  const _Sentinel();
+}
+
 class CameraState {
   final bool isInitialized;
   final bool hasPermission;
   final bool isRecording;
+  final domain.CaptureMode captureMode;
   final CameraDescription? description;
   final CameraController? controller;
   final String? lastCapturePath;
@@ -24,11 +30,13 @@ class CameraState {
   final double maxZoom;
   final int? timerSeconds; // null = off, 3/5/10 = timer duration
   final int? countdownSeconds; // current countdown value
+  final bool isZoomUIVisible; // controls visibility of zoom scrubber
 
   const CameraState({
     required this.isInitialized,
     required this.hasPermission,
     required this.isRecording,
+    this.captureMode = domain.CaptureMode.photo,
     this.description,
     this.controller,
     this.lastCapturePath,
@@ -39,12 +47,14 @@ class CameraState {
     this.maxZoom = 1.0,
     this.timerSeconds,
     this.countdownSeconds,
+    this.isZoomUIVisible = false,
   });
 
   CameraState copyWith({
     bool? isInitialized,
     bool? hasPermission,
     bool? isRecording,
+    domain.CaptureMode? captureMode,
     CameraDescription? description,
     CameraController? controller,
     String? lastCapturePath,
@@ -53,13 +63,15 @@ class CameraState {
     double? currentZoom,
     double? minZoom,
     double? maxZoom,
-    int? timerSeconds,
-    int? countdownSeconds,
+    Object? timerSeconds = const _Sentinel(),
+    Object? countdownSeconds = const _Sentinel(),
+    bool? isZoomUIVisible,
   }) {
     return CameraState(
       isInitialized: isInitialized ?? this.isInitialized,
       hasPermission: hasPermission ?? this.hasPermission,
       isRecording: isRecording ?? this.isRecording,
+      captureMode: captureMode ?? this.captureMode,
       description: description ?? this.description,
       controller: controller ?? this.controller,
       lastCapturePath: lastCapturePath ?? this.lastCapturePath,
@@ -68,8 +80,13 @@ class CameraState {
       currentZoom: currentZoom ?? this.currentZoom,
       minZoom: minZoom ?? this.minZoom,
       maxZoom: maxZoom ?? this.maxZoom,
-      timerSeconds: timerSeconds ?? this.timerSeconds,
-      countdownSeconds: countdownSeconds ?? this.countdownSeconds,
+      timerSeconds: timerSeconds == const _Sentinel()
+          ? this.timerSeconds
+          : timerSeconds as int?,
+      countdownSeconds: countdownSeconds == const _Sentinel()
+          ? this.countdownSeconds
+          : countdownSeconds as int?,
+      isZoomUIVisible: isZoomUIVisible ?? this.isZoomUIVisible,
     );
   }
 
@@ -77,7 +94,9 @@ class CameraState {
         isInitialized: false,
         hasPermission: false,
         isRecording: false,
+        captureMode: domain.CaptureMode.photo,
         flashMode: domain.FlashMode.off,
+        isZoomUIVisible: false,
       );
 }
 
@@ -225,6 +244,19 @@ class CameraNotifier extends StateNotifier<CameraState> {
     }
   }
 
+  void setCaptureMode(domain.CaptureMode mode) {
+    if (state.isRecording) return; // don't allow switching during recording
+    state = state.copyWith(captureMode: mode);
+  }
+
+  void toggleCaptureMode() {
+    if (state.isRecording) return;
+    final next = state.captureMode == domain.CaptureMode.photo
+        ? domain.CaptureMode.video
+        : domain.CaptureMode.photo;
+    state = state.copyWith(captureMode: next);
+  }
+
   Future<String?> startVideo(domain.CameraSettings settings) async {
     try {
       if (!state.isInitialized ||
@@ -336,6 +368,12 @@ class CameraNotifier extends StateNotifier<CameraState> {
     final newZoom =
         (state.currentZoom * scale).clamp(state.minZoom, state.maxZoom);
     setZoom(newZoom);
+  }
+
+  /// Control visibility of zoom UI
+  void setZoomUIVisible(bool visible) {
+    if (state.isZoomUIVisible == visible) return;
+    state = state.copyWith(isZoomUIVisible: visible);
   }
 
   /// Toggle timer between Off -> 3s -> 5s -> 10s -> Off

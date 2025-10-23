@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:permission_handler/permission_handler.dart';
 
+import '../../../../core/utils/logger.dart';
 import '../providers/camera_provider.dart';
 import '../widgets/camera_preview_widget.dart';
 import '../widgets/shutter_button.dart';
@@ -67,6 +68,7 @@ class _CameraPageState extends ConsumerState<CameraPage> {
 
   void _handleScaleStart(ScaleStartDetails details) {
     _baseZoom = ref.read(cameraProvider).currentZoom;
+    Logger.info('Pinch zoom started: baseZoom=$_baseZoom', tag: 'CameraPage');
     _showZoomUI();
   }
 
@@ -77,11 +79,14 @@ class _CameraPageState extends ConsumerState<CameraPage> {
     final newZoom =
         (_baseZoom * details.scale).clamp(state.minZoom, state.maxZoom);
 
+    Logger.info('Pinch zoom update: scale=${details.scale}, newZoom=$newZoom',
+        tag: 'CameraPage');
     ref.read(cameraProvider.notifier).setZoom(newZoom);
     _showZoomUI();
   }
 
   void _handleScaleEnd(ScaleEndDetails details) {
+    Logger.info('Pinch zoom ended', tag: 'CameraPage');
     // Timer in _showZoomUI will handle auto-hide
   }
 

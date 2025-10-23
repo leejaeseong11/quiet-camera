@@ -110,6 +110,9 @@ class CameraNotifier extends StateNotifier<CameraState> {
       final minZoom = await controller.getMinZoomLevel();
       final maxZoom = await controller.getMaxZoomLevel();
 
+      Logger.info('Camera zoom capabilities: min=$minZoom, max=$maxZoom',
+          tag: 'Camera');
+
       state = state.copyWith(
         description: back,
         controller: controller,
@@ -293,15 +296,24 @@ class CameraNotifier extends StateNotifier<CameraState> {
   /// Set zoom level with smooth animation
   Future<void> setZoom(double zoom) async {
     try {
-      if (!state.isInitialized || state.controller == null) return;
+      if (!state.isInitialized || state.controller == null) {
+        Logger.info('Cannot set zoom: camera not initialized', tag: 'Camera');
+        return;
+      }
 
       // Clamp zoom to valid range
       final clampedZoom = zoom.clamp(state.minZoom, state.maxZoom);
+
+      Logger.info(
+          'Setting zoom: $clampedZoom (requested: $zoom, range: ${state.minZoom}-${state.maxZoom})',
+          tag: 'Camera');
 
       // Apply zoom to camera controller
       await state.controller!.setZoomLevel(clampedZoom);
 
       state = state.copyWith(currentZoom: clampedZoom);
+
+      Logger.info('Zoom set successfully to $clampedZoom', tag: 'Camera');
     } catch (e, st) {
       Logger.error('Failed to set zoom',
           tag: 'Camera', error: e, stackTrace: st);

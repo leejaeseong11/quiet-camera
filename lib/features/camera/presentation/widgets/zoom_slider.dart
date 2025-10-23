@@ -37,6 +37,7 @@ class _ZoomSliderState extends ConsumerState<ZoomSlider>
     _animationController = AnimationController(
       duration: const Duration(milliseconds: 200),
       vsync: this,
+      value: widget.isVisible ? 1.0 : 0.0, // Initialize based on visibility
     );
     _fadeAnimation = CurvedAnimation(
       parent: _animationController,
@@ -84,83 +85,91 @@ class _ZoomSliderState extends ConsumerState<ZoomSlider>
     // Calculate effective max zoom (up to 8x for good quality)
     final effectiveMaxZoom = widget.maxZoom.clamp(widget.minZoom, 8.0);
 
+    // Don't render if not visible (optimization)
+    if (!widget.isVisible && _animationController.value == 0.0) {
+      return const SizedBox.shrink();
+    }
+
     return FadeTransition(
       opacity: _fadeAnimation,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-        decoration: BoxDecoration(
-          color: Colors.black.withOpacity(0.7),
-          borderRadius: BorderRadius.circular(20),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // Min label
-            Text(
-              _getZoomLabel(widget.minZoom),
-              style: TextStyle(
-                color: Colors.white.withOpacity(0.6),
-                fontSize: 11,
-                fontFamily: 'SF Pro',
-              ),
-            ),
-            const SizedBox(width: 8),
-
-            // Compact horizontal slider
-            SizedBox(
-              width: 140,
-              child: SliderTheme(
-                data: SliderThemeData(
-                  activeTrackColor: const Color(0xFFFFD60A),
-                  inactiveTrackColor: Colors.white.withOpacity(0.3),
-                  thumbColor: Colors.white,
-                  overlayColor: const Color(0xFFFFD60A).withOpacity(0.2),
-                  thumbShape:
-                      const RoundSliderThumbShape(enabledThumbRadius: 6),
-                  trackHeight: 3,
-                ),
-                child: Slider(
-                  value: _sliderValue,
-                  min: widget.minZoom,
-                  max: effectiveMaxZoom,
-                  divisions: null,
-                  onChangeStart: (value) {
-                    setState(() {
-                      _isDragging = true;
-                    });
-                  },
-                  onChanged: (value) {
-                    setState(() {
-                      _sliderValue = value;
-                    });
-                    widget.onZoomChanged(value);
-                  },
-                  onChangeEnd: (value) {
-                    setState(() {
-                      _isDragging = false;
-                    });
-                  },
-                ),
-              ),
-            ),
-
-            const SizedBox(width: 8),
-
-            // Current zoom value
-            SizedBox(
-              width: 36,
-              child: Text(
-                _getZoomLabel(_sliderValue),
-                style: const TextStyle(
-                  color: Color(0xFFFFD60A),
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
+      child: IgnorePointer(
+        ignoring: !widget.isVisible,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          decoration: BoxDecoration(
+            color: Colors.black.withOpacity(0.7),
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Min label
+              Text(
+                _getZoomLabel(widget.minZoom),
+                style: TextStyle(
+                  color: Colors.white.withOpacity(0.6),
+                  fontSize: 11,
                   fontFamily: 'SF Pro',
                 ),
-                textAlign: TextAlign.center,
               ),
-            ),
-          ],
+              const SizedBox(width: 8),
+
+              // Compact horizontal slider
+              SizedBox(
+                width: 140,
+                child: SliderTheme(
+                  data: SliderThemeData(
+                    activeTrackColor: const Color(0xFFFFD60A),
+                    inactiveTrackColor: Colors.white.withOpacity(0.3),
+                    thumbColor: Colors.white,
+                    overlayColor: const Color(0xFFFFD60A).withOpacity(0.2),
+                    thumbShape:
+                        const RoundSliderThumbShape(enabledThumbRadius: 6),
+                    trackHeight: 3,
+                  ),
+                  child: Slider(
+                    value: _sliderValue,
+                    min: widget.minZoom,
+                    max: effectiveMaxZoom,
+                    divisions: null,
+                    onChangeStart: (value) {
+                      setState(() {
+                        _isDragging = true;
+                      });
+                    },
+                    onChanged: (value) {
+                      setState(() {
+                        _sliderValue = value;
+                      });
+                      widget.onZoomChanged(value);
+                    },
+                    onChangeEnd: (value) {
+                      setState(() {
+                        _isDragging = false;
+                      });
+                    },
+                  ),
+                ),
+              ),
+
+              const SizedBox(width: 8),
+
+              // Current zoom value
+              SizedBox(
+                width: 36,
+                child: Text(
+                  _getZoomLabel(_sliderValue),
+                  style: const TextStyle(
+                    color: Color(0xFFFFD60A),
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    fontFamily: 'SF Pro',
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

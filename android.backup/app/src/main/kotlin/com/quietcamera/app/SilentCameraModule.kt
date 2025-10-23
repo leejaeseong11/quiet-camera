@@ -130,9 +130,9 @@ class SilentCameraModule(private val context: Context) {
                                     override fun onCaptureCompleted(
                                         session: CameraCaptureSession,
                                         request: CaptureRequest,
-                                        captureResult: TotalCaptureResult
+                                        result: TotalCaptureResult
                                     ) {
-                                        super.onCaptureCompleted(session, request, captureResult)
+                                        super.onCaptureCompleted(session, request, result)
                                         
                                         // Save image
                                         val image = reader.acquireLatestImage()

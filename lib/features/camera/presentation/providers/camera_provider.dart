@@ -216,15 +216,30 @@ class CameraNotifier extends StateNotifier<CameraState> {
 
   Future<String?> startVideo(domain.CameraSettings settings) async {
     try {
-      if (!state.isInitialized || state.isRecording) return null;
-      final path = await _silent.startSilentVideo(
-        resolution: _mapResolution(settings.videoResolution),
-        fps: settings.videoResolution.fps,
-        recordAudio: settings.recordAudio,
-      );
-      state = state.copyWith(isRecording: true, lastCapturePath: path);
-      return path;
-    } catch (e) {
+      if (!state.isInitialized ||
+          state.isRecording ||
+          state.controller == null) {
+        return null;
+      }
+
+      Logger.debug('Starting video recording', tag: 'Camera');
+
+      // Mute system sounds (Android only)
+      await _silent.muteSystemSounds();
+
+      // Start recording with Flutter camera plugin
+      await state.controller!.startVideoRecording();
+
+      state = state.copyWith(isRecording: true);
+      Logger.info('Video recording started', tag: 'Camera');
+      return 'recording'; // Placeholder path until we stop
+    } catch (e, st) {
+      Logger.error('Failed to start video recording',
+          tag: 'Camera', error: e, stackTrace: st);
+
+      // Restore sounds on error
+      await _silent.restoreSystemSounds();
+
       state = state.copyWith(error: 'Failed to start video: $e');
       return null;
     }
@@ -232,18 +247,34 @@ class CameraNotifier extends StateNotifier<CameraState> {
 
   Future<String?> stopVideo() async {
     try {
-      if (!state.isRecording) return null;
-      final path = await _silent.stopSilentVideo();
+      if (!state.isRecording || state.controller == null) return null;
+
+      Logger.debug('Stopping video recording', tag: 'Camera');
+
+      // Stop recording
+      final video = await state.controller!.stopVideoRecording();
+
+      // Restore system sounds
+      await _silent.restoreSystemSounds();
+
+      Logger.info('Video saved: ${video.path}', tag: 'Camera');
 
       // Save to gallery
-      if (path.isNotEmpty) {
-        await _gallery.saveVideo(path);
-      }
+      await _gallery.saveVideo(video.path);
 
-      state = state.copyWith(isRecording: false, lastCapturePath: path);
-      return path;
-    } catch (e) {
-      state = state.copyWith(error: 'Failed to stop video: $e');
+      state = state.copyWith(isRecording: false, lastCapturePath: video.path);
+      return video.path;
+    } catch (e, st) {
+      Logger.error('Failed to stop video recording',
+          tag: 'Camera', error: e, stackTrace: st);
+
+      // Ensure sounds are restored
+      await _silent.restoreSystemSounds();
+
+      state = state.copyWith(
+        isRecording: false,
+        error: 'Failed to stop video: $e',
+      );
       return null;
     }
   }
@@ -286,9 +317,6 @@ class CameraNotifier extends StateNotifier<CameraState> {
         (state.currentZoom * scale).clamp(state.minZoom, state.maxZoom);
     setZoom(newZoom);
   }
-
-  // Mapping helpers
-  String _mapResolution(domain.VideoResolution r) => '${r.resolution}@${r.fps}';
 }
 
 final cameraProvider =

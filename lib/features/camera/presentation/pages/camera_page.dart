@@ -9,6 +9,7 @@ import '../widgets/flash_button.dart';
 import '../widgets/camera_switch_button.dart';
 import '../widgets/zoom_slider.dart';
 import '../widgets/zoom_level_indicator.dart';
+import '../widgets/recording_timer.dart';
 import '../../../camera/domain/entities/camera_settings.dart' as domain;
 import '../../../gallery/presentation/widgets/gallery_thumbnail.dart';
 import '../../../gallery/presentation/pages/gallery_view_page.dart';
@@ -98,6 +99,18 @@ class _CameraPageState extends ConsumerState<CameraPage> {
             // Zoom level indicator (center of screen)
             if (_showZoomIndicator)
               ZoomLevelIndicator(zoomLevel: state.currentZoom),
+
+            // Recording timer - top center
+            Positioned(
+              top: 48,
+              left: 0,
+              right: 0,
+              child: SafeArea(
+                child: Center(
+                  child: RecordingTimer(isRecording: state.isRecording),
+                ),
+              ),
+            ),
 
             // Flash toggle button - top left
             Positioned(

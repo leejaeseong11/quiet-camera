@@ -1,13 +1,24 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:permission_handler/permission_handler.dart';
 
+import '../../../../core/utils/logger.dart';
 import '../providers/camera_provider.dart';
 import '../widgets/camera_preview_widget.dart';
 import '../widgets/shutter_button.dart';
 import '../widgets/flash_button.dart';
 import '../widgets/camera_switch_button.dart';
+import '../widgets/recording_timer.dart';
+import '../widgets/timer_button.dart';
+import '../widgets/timer_countdown.dart';
+import '../widgets/mode_selector.dart';
+import '../widgets/zoom_scrubber.dart';
 import '../../../camera/domain/entities/camera_settings.dart' as domain;
+import '../../../gallery/presentation/widgets/gallery_thumbnail.dart';
+import '../../../gallery/presentation/pages/gallery_view_page.dart';
+import '../../../gallery/presentation/providers/latest_asset_provider.dart';
 
 class CameraPage extends ConsumerStatefulWidget {
   const CameraPage({super.key});
@@ -17,6 +28,10 @@ class CameraPage extends ConsumerStatefulWidget {
 }
 
 class _CameraPageState extends ConsumerState<CameraPage> {
+  double _baseZoom = 1.0;
+  Timer? _zoomHideTimer;
+  double _hDragAccum = 0.0;
+
   @override
   void initState() {
     super.initState();
@@ -27,6 +42,63 @@ class _CameraPageState extends ConsumerState<CameraPage> {
         await ref.read(cameraProvider.notifier).initialize();
       }
     });
+  }
+
+  @override
+  void dispose() {
+    _zoomHideTimer?.cancel();
+    super.dispose();
+  }
+
+  void _handleScaleStart(ScaleStartDetails details) {
+    _baseZoom = ref.read(cameraProvider).currentZoom;
+    Logger.info('Pinch zoom started: baseZoom=$_baseZoom', tag: 'CameraPage');
+    _showZoomTemporarily();
+  }
+
+  void _handleScaleUpdate(ScaleUpdateDetails details) {
+    if (!ref.read(cameraProvider).isInitialized) return;
+
+    final state = ref.read(cameraProvider);
+    final newZoom =
+        (_baseZoom * details.scale).clamp(state.minZoom, state.maxZoom);
+
+    Logger.info('Pinch zoom update: scale=${details.scale}, newZoom=$newZoom',
+        tag: 'CameraPage');
+    ref.read(cameraProvider.notifier).setZoom(newZoom);
+    _showZoomTemporarily();
+  }
+
+  void _handleScaleEnd(ScaleEndDetails details) {
+    Logger.info('Pinch zoom ended', tag: 'CameraPage');
+  }
+
+  void _handleTapDown(TapDownDetails details) {
+    _showZoomTemporarily();
+  }
+
+  void _onHorizontalDragStart(DragStartDetails d) {
+    _hDragAccum = 0.0;
+    _showZoomTemporarily();
+  }
+
+  void _onHorizontalDragUpdate(DragUpdateDetails d) {
+    _hDragAccum += d.primaryDelta ?? 0.0;
+  }
+
+  void _onHorizontalDragEnd(DragEndDetails d) {
+    // Screen-level swipe to change capture mode
+    final vx = d.velocity.pixelsPerSecond.dx;
+    const distanceThreshold = 40.0;
+    if (vx > 150 || _hDragAccum > distanceThreshold) {
+      ref
+          .read(cameraProvider.notifier)
+          .setCaptureMode(domain.CaptureMode.video);
+    } else if (vx < -150 || _hDragAccum < -distanceThreshold) {
+      ref
+          .read(cameraProvider.notifier)
+          .setCaptureMode(domain.CaptureMode.photo);
+    }
   }
 
   @override
@@ -62,67 +134,156 @@ class _CameraPageState extends ConsumerState<CameraPage> {
 
     return Scaffold(
       backgroundColor: Colors.black,
-      body: Stack(
-        fit: StackFit.expand,
-        children: [
-          CameraPreviewWidget(controller: state.controller!),
-          // Flash toggle button - top left
-          Positioned(
-            top: 48,
-            left: 16,
-            child: SafeArea(
-              child: FlashButton(
-                flashMode: state.flashMode,
-                onToggle: () =>
-                    ref.read(cameraProvider.notifier).toggleFlashMode(),
+      body: GestureDetector(
+        onScaleStart: _handleScaleStart,
+        onScaleUpdate: _handleScaleUpdate,
+        onScaleEnd: _handleScaleEnd,
+        onTapDown: _handleTapDown,
+        onHorizontalDragStart: _onHorizontalDragStart,
+        onHorizontalDragUpdate: _onHorizontalDragUpdate,
+        onHorizontalDragEnd: _onHorizontalDragEnd,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            CameraPreviewWidget(controller: state.controller!),
+
+            // Timer countdown overlay (center of screen)
+            if (state.countdownSeconds != null)
+              TimerCountdown(seconds: state.countdownSeconds!),
+
+            // Mode selector - top center
+            Positioned(
+              top: 48,
+              left: 0,
+              right: 0,
+              child: SafeArea(
+                child: Center(
+                  child: ModeSelector(),
+                ),
               ),
             ),
-          ),
-          // Camera switch button - top right
-          Positioned(
-            top: 48,
-            right: 16,
-            child: SafeArea(
-              child: CameraSwitchButton(
-                onSwitch: () =>
-                    ref.read(cameraProvider.notifier).switchCamera(),
+
+            // Recording timer - below mode selector
+            Positioned(
+              top: 100,
+              left: 0,
+              right: 0,
+              child: SafeArea(
+                child: Center(
+                  child: RecordingTimer(isRecording: state.isRecording),
+                ),
               ),
             ),
-          ),
-          // Shutter and video controls - bottom center
-          Positioned(
-            bottom: 32,
-            left: 0,
-            right: 0,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                ShutterButton(
-                  onTap: () async {
-                    final path = await ref
-                        .read(cameraProvider.notifier)
-                        .capturePhoto(settings);
-                    if (!mounted) return;
-                    if (path != null) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('Saved: $path')),
-                      );
-                    }
-                  },
+
+            // Flash toggle button - top left
+            Positioned(
+              top: 48,
+              left: 16,
+              child: SafeArea(
+                child: Row(
+                  children: [
+                    FlashButton(
+                      flashMode: state.flashMode,
+                      onToggle: () =>
+                          ref.read(cameraProvider.notifier).toggleFlashMode(),
+                    ),
+                  ],
                 ),
-                const SizedBox(width: 24),
-                _VideoButton(
-                  isRecording: state.isRecording,
-                  onStart: () =>
-                      ref.read(cameraProvider.notifier).startVideo(settings),
-                  onStop: () => ref.read(cameraProvider.notifier).stopVideo(),
-                ),
-              ],
+              ),
             ),
-          ),
-        ],
+            // Camera switch button - top right
+            Positioned(
+              top: 48,
+              right: 16,
+              child: SafeArea(
+                child: CameraSwitchButton(
+                  onSwitch: () =>
+                      ref.read(cameraProvider.notifier).switchCamera(),
+                ),
+              ),
+            ),
+            // Zoom scrubber - appears on interaction only
+            if (state.isZoomUIVisible)
+              Positioned(
+                bottom: 140,
+                left: 0,
+                right: 0,
+                child: Center(
+                  child: ZoomScrubber(
+                    onInteract: _showZoomTemporarily,
+                  ),
+                ),
+              ),
+            // Shutter and video controls - bottom center
+            Positioned(
+              bottom: 32,
+              left: 0,
+              right: 0,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  // Gallery thumbnail - left side
+                  Expanded(
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: Padding(
+                        padding: const EdgeInsets.only(left: 32),
+                        child: Consumer(
+                          builder: (context, ref, child) {
+                            final latestAsset = ref.watch(latestAssetProvider);
+                            return GalleryThumbnail(
+                              latestAsset: latestAsset,
+                              onTap: () {
+                                Navigator.of(context).push(
+                                  MaterialPageRoute(
+                                    builder: (context) =>
+                                        const GalleryViewPage(),
+                                  ),
+                                );
+                              },
+                            );
+                          },
+                        ),
+                      ),
+                    ),
+                  ),
+
+                  // Shutter button - center, behavior depends on mode
+                  _ModeAwareShutter(settings: settings),
+
+                  // Right side: timer button only
+                  Expanded(
+                    child: Align(
+                      alignment: Alignment.centerRight,
+                      child: Padding(
+                        padding: const EdgeInsets.only(right: 32),
+                        child: TimerButton(
+                          timerSeconds: state.timerSeconds,
+                          onToggle: () =>
+                              ref.read(cameraProvider.notifier).toggleTimer(),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
+  }
+}
+
+extension _ZoomVisibility on _CameraPageState {
+  void _showZoomTemporarily() {
+    ref.read(cameraProvider.notifier).setZoomUIVisible(true);
+    _zoomHideTimer?.cancel();
+    _zoomHideTimer = Timer(const Duration(seconds: 2), () {
+      if (mounted) {
+        ref.read(cameraProvider.notifier).setZoomUIVisible(false);
+      }
+    });
   }
 }
 
@@ -161,31 +322,35 @@ class _PermissionView extends StatelessWidget {
   }
 }
 
-class _VideoButton extends StatelessWidget {
-  const _VideoButton(
-      {required this.isRecording, required this.onStart, required this.onStop});
-  final bool isRecording;
-  final VoidCallback onStart;
-  final Future<void> Function() onStop;
+class _ModeAwareShutter extends ConsumerWidget {
+  const _ModeAwareShutter({required this.settings});
+  final domain.CameraSettings settings;
   @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
+  Widget build(BuildContext context, WidgetRef ref) {
+    final state = ref.watch(cameraProvider);
+    final notifier = ref.read(cameraProvider.notifier);
+
+    return ShutterButton(
+      isRecording:
+          state.captureMode == domain.CaptureMode.video && state.isRecording,
       onTap: () async {
-        if (isRecording) {
-          await onStop();
+        if (state.captureMode == domain.CaptureMode.photo) {
+          final path = await notifier.capturePhotoWithTimer(settings);
+          if (context.mounted && path != null) {
+            ref.read(latestAssetProvider.notifier).refresh();
+            ScaffoldMessenger.of(context)
+                .showSnackBar(SnackBar(content: Text('Saved: $path')));
+          }
         } else {
-          onStart();
+          // Video mode: toggle start/stop
+          if (!state.isRecording) {
+            await notifier.startVideo(settings);
+          } else {
+            await notifier.stopVideo();
+            ref.read(latestAssetProvider.notifier).refresh();
+          }
         }
       },
-      child: Container(
-        width: 58,
-        height: 58,
-        decoration: BoxDecoration(
-          color: isRecording ? Colors.red : Colors.transparent,
-          border: Border.all(color: Colors.white, width: 3),
-          shape: BoxShape.circle,
-        ),
-      ),
     );
   }
 }

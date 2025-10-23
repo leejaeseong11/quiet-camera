@@ -2,7 +2,7 @@ enum FlashMode {
   auto,
   on,
   off;
-  
+
   String get displayName {
     switch (this) {
       case FlashMode.auto:
@@ -15,11 +15,25 @@ enum FlashMode {
   }
 }
 
+enum CaptureMode {
+  photo,
+  video;
+
+  String get displayName {
+    switch (this) {
+      case CaptureMode.photo:
+        return 'Photo';
+      case CaptureMode.video:
+        return 'Video';
+    }
+  }
+}
+
 enum ImageQuality {
-  high,    // HEIF
-  medium,  // JPEG high quality
+  high, // HEIF
+  medium, // JPEG high quality
   compatible; // JPEG compatible
-  
+
   String get displayName {
     switch (this) {
       case ImageQuality.high:
@@ -30,7 +44,7 @@ enum ImageQuality {
         return 'Most Compatible (JPEG)';
     }
   }
-  
+
   int get quality {
     switch (this) {
       case ImageQuality.high:
@@ -48,7 +62,7 @@ enum VideoResolution {
   video4K30,
   video1080p60,
   video1080p30;
-  
+
   String get displayName {
     switch (this) {
       case VideoResolution.video4K60:
@@ -61,7 +75,7 @@ enum VideoResolution {
         return '1080p @ 30fps';
     }
   }
-  
+
   String get resolution {
     switch (this) {
       case VideoResolution.video4K60:
@@ -72,7 +86,7 @@ enum VideoResolution {
         return '1920x1080';
     }
   }
-  
+
   int get fps {
     switch (this) {
       case VideoResolution.video4K60:
@@ -91,7 +105,7 @@ class CameraSettings {
   final VideoResolution videoResolution;
   final bool isSilent;
   final bool recordAudio;
-  
+
   const CameraSettings({
     required this.flashMode,
     required this.imageQuality,
@@ -99,7 +113,7 @@ class CameraSettings {
     this.isSilent = true,
     this.recordAudio = false,
   });
-  
+
   factory CameraSettings.defaults() {
     return const CameraSettings(
       flashMode: FlashMode.auto,
@@ -109,7 +123,7 @@ class CameraSettings {
       recordAudio: false,
     );
   }
-  
+
   CameraSettings copyWith({
     FlashMode? flashMode,
     ImageQuality? imageQuality,

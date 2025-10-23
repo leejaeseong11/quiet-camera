@@ -7,51 +7,87 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 import '../../../../core/utils/logger.dart';
-import '../../../../core/error/exceptions.dart' as app_exceptions;
 import '../../../../platform/silent_shutter_native.dart';
 import '../../../camera/domain/entities/camera_settings.dart' as domain;
 import '../../../gallery/data/repositories/gallery_repository.dart';
+
+// Sentinel class for nullable parameter handling in copyWith
+class _Sentinel {
+  const _Sentinel();
+}
 
 class CameraState {
   final bool isInitialized;
   final bool hasPermission;
   final bool isRecording;
+  final domain.CaptureMode captureMode;
   final CameraDescription? description;
   final CameraController? controller;
   final String? lastCapturePath;
   final String? error;
   final domain.FlashMode flashMode;
+  final double currentZoom;
+  final double minZoom;
+  final double maxZoom;
+  final int? timerSeconds; // null = off, 3/5/10 = timer duration
+  final int? countdownSeconds; // current countdown value
+  final bool isZoomUIVisible; // controls visibility of zoom scrubber
 
   const CameraState({
     required this.isInitialized,
     required this.hasPermission,
     required this.isRecording,
+    this.captureMode = domain.CaptureMode.photo,
     this.description,
     this.controller,
     this.lastCapturePath,
     this.error,
-    this.flashMode = domain.FlashMode.auto,
+    this.flashMode = domain.FlashMode.off,
+    this.currentZoom = 1.0,
+    this.minZoom = 1.0,
+    this.maxZoom = 1.0,
+    this.timerSeconds,
+    this.countdownSeconds,
+    this.isZoomUIVisible = false,
   });
 
   CameraState copyWith({
     bool? isInitialized,
     bool? hasPermission,
     bool? isRecording,
+    domain.CaptureMode? captureMode,
     CameraDescription? description,
     CameraController? controller,
     String? lastCapturePath,
     String? error,
     domain.FlashMode? flashMode,
+    double? currentZoom,
+    double? minZoom,
+    double? maxZoom,
+    Object? timerSeconds = const _Sentinel(),
+    Object? countdownSeconds = const _Sentinel(),
+    bool? isZoomUIVisible,
   }) {
     return CameraState(
       isInitialized: isInitialized ?? this.isInitialized,
       hasPermission: hasPermission ?? this.hasPermission,
       isRecording: isRecording ?? this.isRecording,
+      captureMode: captureMode ?? this.captureMode,
       description: description ?? this.description,
       controller: controller ?? this.controller,
       lastCapturePath: lastCapturePath ?? this.lastCapturePath,
       error: error,
       flashMode: flashMode ?? this.flashMode,
+      currentZoom: currentZoom ?? this.currentZoom,
+      minZoom: minZoom ?? this.minZoom,
+      maxZoom: maxZoom ?? this.maxZoom,
+      timerSeconds: timerSeconds == const _Sentinel()
+          ? this.timerSeconds
+          : timerSeconds as int?,
+      countdownSeconds: countdownSeconds == const _Sentinel()
+          ? this.countdownSeconds
+          : countdownSeconds as int?,
+      isZoomUIVisible: isZoomUIVisible ?? this.isZoomUIVisible,
     );
   }
 
@@ -59,7 +95,9 @@ class CameraState {
         isInitialized: false,
         hasPermission: false,
         isRecording: false,
-        flashMode: domain.FlashMode.auto,
+        captureMode: domain.CaptureMode.photo,
+        flashMode: domain.FlashMode.off,
+        isZoomUIVisible: false,
       );
 }
 
@@ -103,10 +141,21 @@ class CameraNotifier extends StateNotifier<CameraState> {
         enableAudio: true,
       );
       await controller.initialize();
+
+      // Get zoom capabilities
+      final minZoom = await controller.getMinZoomLevel();
+      final maxZoom = await controller.getMaxZoomLevel();
+
+      Logger.info('Camera zoom capabilities: min=$minZoom, max=$maxZoom',
+          tag: 'Camera');
+
       state = state.copyWith(
         description: back,
         controller: controller,
         isInitialized: true,
+        minZoom: minZoom,
+        maxZoom: maxZoom,
+        currentZoom: 1.0,
       );
     } catch (e, st) {
       Logger.error('Camera init failed',
@@ -151,10 +200,17 @@ class CameraNotifier extends StateNotifier<CameraState> {
       );
       await controller.initialize();
 
+      // Get zoom capabilities
+      final minZoom = await controller.getMinZoomLevel();
+      final maxZoom = await controller.getMaxZoomLevel();
+
       state = state.copyWith(
         description: targetCamera,
         controller: controller,
         isInitialized: true,
+        minZoom: minZoom,
+        maxZoom: maxZoom,
+        currentZoom: 1.0,
       );
     } catch (e, st) {
       Logger.error('Camera switch failed',
@@ -165,39 +221,77 @@ class CameraNotifier extends StateNotifier<CameraState> {
 
   Future<String?> capturePhoto(domain.CameraSettings settings) async {
     try {
-      if (!state.isInitialized) return null;
-      // Use native silent capture; preview stays from camera plugin
-      final path = await _silent.capturePhoto(
-        quality: _mapQuality(settings.imageQuality),
-        flashMode: _mapFlash(settings.flashMode),
-        // Let native decide best still resolution
-        resolution: null,
-      );
+      if (!state.isInitialized || state.controller == null) return null;
+
+      Logger.debug('Starting photo capture', tag: 'Camera');
+
+      // Mute system sounds before capture (Android only)
+      await _silent.muteSystemSounds();
+
+      // Use Flutter camera plugin to take picture
+      final image = await state.controller!.takePicture();
+
+      // Restore system sounds after capture
+      await _silent.restoreSystemSounds();
+
+      Logger.info('Photo captured: ${image.path}', tag: 'Camera');
 
       // Save to gallery
-      if (path.isNotEmpty) {
-        await _gallery.saveImage(path);
-      }
+      await _gallery.saveImage(image.path);
 
-      state = state.copyWith(lastCapturePath: path);
-      return path;
-    } on app_exceptions.CameraException catch (e) {
-      state = state.copyWith(error: e.message);
+      state = state.copyWith(lastCapturePath: image.path);
+      return image.path;
+    } catch (e, st) {
+      Logger.error('Photo capture failed',
+          tag: 'Camera', error: e, stackTrace: st);
+
+      // Ensure sounds are restored even on error
+      await _silent.restoreSystemSounds();
+
+      state = state.copyWith(error: 'Failed to capture photo: $e');
       return null;
     }
   }
 
+  void setCaptureMode(domain.CaptureMode mode) {
+    if (state.isRecording) return; // don't allow switching during recording
+    state = state.copyWith(captureMode: mode);
+  }
+
+  void toggleCaptureMode() {
+    if (state.isRecording) return;
+    final next = state.captureMode == domain.CaptureMode.photo
+        ? domain.CaptureMode.video
+        : domain.CaptureMode.photo;
+    state = state.copyWith(captureMode: next);
+  }
+
   Future<String?> startVideo(domain.CameraSettings settings) async {
     try {
-      if (!state.isInitialized || state.isRecording) return null;
-      final path = await _silent.startSilentVideo(
-        resolution: _mapResolution(settings.videoResolution),
-        fps: settings.videoResolution.fps,
-        recordAudio: settings.recordAudio,
-      );
-      state = state.copyWith(isRecording: true, lastCapturePath: path);
-      return path;
-    } catch (e) {
+      if (!state.isInitialized ||
+          state.isRecording ||
+          state.controller == null) {
+        return null;
+      }
+
+      Logger.debug('Starting video recording', tag: 'Camera');
+
+      // Mute system sounds (Android only)
+      await _silent.muteSystemSounds();
+
+      // Start recording with Flutter camera plugin
+      await state.controller!.startVideoRecording();
+
+      state = state.copyWith(isRecording: true);
+      Logger.info('Video recording started', tag: 'Camera');
+      return 'recording'; // Placeholder path until we stop
+    } catch (e, st) {
+      Logger.error('Failed to start video recording',
+          tag: 'Camera', error: e, stackTrace: st);
+
+      // Restore sounds on error
+      await _silent.restoreSystemSounds();
+
       state = state.copyWith(error: 'Failed to start video: $e');
       return null;
     }
@@ -205,18 +299,34 @@ class CameraNotifier extends StateNotifier<CameraState> {
 
   Future<String?> stopVideo() async {
     try {
-      if (!state.isRecording) return null;
-      final path = await _silent.stopSilentVideo();
+      if (!state.isRecording || state.controller == null) return null;
+
+      Logger.debug('Stopping video recording', tag: 'Camera');
+
+      // Stop recording
+      final video = await state.controller!.stopVideoRecording();
+
+      // Restore system sounds
+      await _silent.restoreSystemSounds();
+
+      Logger.info('Video saved: ${video.path}', tag: 'Camera');
 
       // Save to gallery
-      if (path.isNotEmpty) {
-        await _gallery.saveVideo(path);
-      }
+      await _gallery.saveVideo(video.path);
 
-      state = state.copyWith(isRecording: false, lastCapturePath: path);
-      return path;
-    } catch (e) {
-      state = state.copyWith(error: 'Failed to stop video: $e');
+      state = state.copyWith(isRecording: false, lastCapturePath: video.path);
+      return video.path;
+    } catch (e, st) {
+      Logger.error('Failed to stop video recording',
+          tag: 'Camera', error: e, stackTrace: st);
+
+      // Ensure sounds are restored
+      await _silent.restoreSystemSounds();
+
+      state = state.copyWith(
+        isRecording: false,
+        error: 'Failed to stop video: $e',
+      );
       return null;
     }
   }
@@ -232,21 +342,90 @@ class CameraNotifier extends StateNotifier<CameraState> {
     state = state.copyWith(flashMode: mode);
   }
 
-  // Mapping helpers
-  int _mapQuality(domain.ImageQuality q) => q.quality;
+  /// Set zoom level with smooth animation
+  Future<void> setZoom(double zoom) async {
+    try {
+      if (!state.isInitialized || state.controller == null) {
+        Logger.info('Cannot set zoom: camera not initialized', tag: 'Camera');
+        return;
+      }
 
-  String _mapFlash(domain.FlashMode m) {
-    switch (m) {
-      case domain.FlashMode.auto:
-        return 'auto';
-      case domain.FlashMode.on:
-        return 'on';
-      case domain.FlashMode.off:
-        return 'off';
+      // Clamp zoom to valid range
+      final clampedZoom = zoom.clamp(state.minZoom, state.maxZoom);
+
+      Logger.info(
+          'Setting zoom: $clampedZoom (requested: $zoom, range: ${state.minZoom}-${state.maxZoom})',
+          tag: 'Camera');
+
+      // Apply zoom to camera controller
+      await state.controller!.setZoomLevel(clampedZoom);
+
+      state = state.copyWith(currentZoom: clampedZoom);
+
+      Logger.info('Zoom set successfully to $clampedZoom', tag: 'Camera');
+    } catch (e, st) {
+      Logger.error('Failed to set zoom',
+          tag: 'Camera', error: e, stackTrace: st);
     }
   }
 
-  String _mapResolution(domain.VideoResolution r) => '${r.resolution}@${r.fps}';
+  /// Handle pinch gesture zoom
+  void onScaleUpdate(double scale) {
+    if (!state.isInitialized) return;
+
+    // Calculate new zoom based on scale
+    final newZoom =
+        (state.currentZoom * scale).clamp(state.minZoom, state.maxZoom);
+    setZoom(newZoom);
+  }
+
+  /// Control visibility of zoom UI
+  void setZoomUIVisible(bool visible) {
+    if (state.isZoomUIVisible == visible) return;
+    state = state.copyWith(isZoomUIVisible: visible);
+  }
+
+  /// Toggle timer between Off -> 3s -> 5s -> 10s -> Off
+  void toggleTimer() {
+    final int? nextTimer;
+    switch (state.timerSeconds) {
+      case null:
+        nextTimer = 3;
+        break;
+      case 3:
+        nextTimer = 5;
+        break;
+      case 5:
+        nextTimer = 10;
+        break;
+      case 10:
+      default:
+        nextTimer = null;
+        break;
+    }
+    state = state.copyWith(timerSeconds: nextTimer);
+    Logger.info('Timer set to: ${nextTimer ?? "OFF"}', tag: 'Camera');
+  }
+
+  /// Start timer countdown and capture photo
+  Future<String?> capturePhotoWithTimer(domain.CameraSettings settings) async {
+    if (state.timerSeconds == null) {
+      // No timer, capture immediately
+      return capturePhoto(settings);
+    }
+
+    // Start countdown
+    var countdown = state.timerSeconds!;
+    while (countdown > 0) {
+      state = state.copyWith(countdownSeconds: countdown);
+      await Future.delayed(const Duration(seconds: 1));
+      countdown--;
+    }
+
+    // Clear countdown and capture
+    state = state.copyWith(countdownSeconds: null);
+    return capturePhoto(settings);
+  }
 }
 
 final cameraProvider =

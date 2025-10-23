@@ -252,7 +252,7 @@ class SilentCameraModule(private val context: Context) {
     
     // MARK: - Audio Control
     
-    private fun muteSystemSounds() {
+    fun muteSystemSounds() {
         try {
             // Save original settings
             originalRingerMode = audioManager.ringerMode
@@ -268,7 +268,7 @@ class SilentCameraModule(private val context: Context) {
         }
     }
     
-    private fun restoreSystemSounds() {
+    fun restoreSystemSounds() {
         try {
             // Restore original settings
             audioManager.setStreamVolume(AudioManager.STREAM_SYSTEM, originalStreamVolume, 0)

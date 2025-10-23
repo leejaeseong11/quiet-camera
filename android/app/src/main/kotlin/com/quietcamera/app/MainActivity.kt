@@ -46,6 +46,14 @@ class MainActivity: FlutterActivity() {
                 "stopSilentVideo" -> {
                     cameraModule.stopSilentVideo(result)
                 }
+                "muteSystemSounds" -> {
+                    cameraModule.muteSystemSounds()
+                    result.success(null)
+                }
+                "restoreSystemSounds" -> {
+                    cameraModule.restoreSystemSounds()
+                    result.success(null)
+                }
                 "testConnection" -> {
                     result.success("Connection OK")
                 }

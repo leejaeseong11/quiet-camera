@@ -186,27 +186,27 @@
 ### Week 5: 줌 기능
 
 #### ✅ 5.1 줌 UI (Day 1-2)
-- [ ] 하단 줌 버튼 구현
-  - [ ] lib/features/camera/presentation/widgets/zoom_slider.dart
-  - [ ] .5x, 1x, 2x (또는 3x) 버튼
-  - [ ] 활성 버튼 강조 (황색 배경)
-- [ ] 핀치 제스처 인식
-  - [ ] GestureDetector로 onScaleUpdate 처리
-  - [ ] 줌 레벨 계산 (0.5x ~ 10x 범위)
-- [ ] 줌 슬라이더 UI
-  - [ ] 버튼 홀드 시 슬라이더 표시
-  - [ ] 드래그로 연속 줌
+- [x] 하단 줌 버튼 구현
+  - [x] lib/features/camera/presentation/widgets/zoom_slider.dart
+  - [x] .5x, 1x, 2x (또는 3x) 버튼
+  - [x] 활성 버튼 강조 (황색 배경)
+- [x] 핀치 제스처 인식
+  - [x] GestureDetector로 onScaleUpdate 처리
+  - [x] 줌 레벨 계산 (0.5x ~ 10x 범위)
+- [x] 줌 슬라이더 UI
+  - [x] 버튼 홀드 시 슬라이더 표시
+  - [x] 드래그로 연속 줌
 
 #### ✅ 5.2 줌 로직 (Day 3-4)
-- [ ] 디지털 줌 구현
-  - [ ] CameraController.setZoomLevel()
-  - [ ] 최소/최대 줌 제한
-- [ ] 부드러운 전환 애니메이션
-  - [ ] AnimatedContainer 사용
-  - [ ] 200ms 보간
-- [ ] 줌 레벨 표시
-  - [ ] 화면 중앙에 "1.5x" 표시
-  - [ ] 2초 후 자동 숨김
+- [x] 디지털 줌 구현
+  - [x] CameraController.setZoomLevel()
+  - [x] 최소/최대 줌 제한
+- [x] 부드러운 전환 애니메이션
+  - [x] AnimatedContainer 사용
+  - [x] 200ms 보간
+- [x] 줌 레벨 표시
+  - [x] 화면 중앙에 "1.5x" 표시
+  - [x] 2초 후 자동 숨김
 
 #### ✅ 5.3 플래시 제어 (Day 5)
 - [ ] Auto/On/Off 모드 구현

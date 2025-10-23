@@ -7,6 +7,8 @@ import '../widgets/camera_preview_widget.dart';
 import '../widgets/shutter_button.dart';
 import '../widgets/flash_button.dart';
 import '../widgets/camera_switch_button.dart';
+import '../widgets/zoom_slider.dart';
+import '../widgets/zoom_level_indicator.dart';
 import '../../../camera/domain/entities/camera_settings.dart' as domain;
 
 class CameraPage extends ConsumerStatefulWidget {
@@ -17,11 +19,43 @@ class CameraPage extends ConsumerStatefulWidget {
 }
 
 class _CameraPageState extends ConsumerState<CameraPage> {
+  double _baseZoom = 1.0;
+  bool _showZoomIndicator = false;
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(cameraProvider.notifier).initialize();
+    });
+  }
+
+  void _handleScaleStart(ScaleStartDetails details) {
+    _baseZoom = ref.read(cameraProvider).currentZoom;
+  }
+
+  void _handleScaleUpdate(ScaleUpdateDetails details) {
+    if (!ref.read(cameraProvider).isInitialized) return;
+
+    final state = ref.read(cameraProvider);
+    final newZoom =
+        (_baseZoom * details.scale).clamp(state.minZoom, state.maxZoom);
+
+    ref.read(cameraProvider.notifier).setZoom(newZoom);
+
+    setState(() {
+      _showZoomIndicator = true;
+    });
+  }
+
+  void _handleScaleEnd(ScaleEndDetails details) {
+    // Hide zoom indicator after a delay
+    Future.delayed(const Duration(milliseconds: 100), () {
+      if (mounted) {
+        setState(() {
+          _showZoomIndicator = false;
+        });
+      }
     });
   }
 
@@ -48,65 +82,102 @@ class _CameraPageState extends ConsumerState<CameraPage> {
 
     return Scaffold(
       backgroundColor: Colors.black,
-      body: Stack(
-        fit: StackFit.expand,
-        children: [
-          CameraPreviewWidget(controller: state.controller!),
-          // Flash toggle button - top left
-          Positioned(
-            top: 48,
-            left: 16,
-            child: SafeArea(
-              child: FlashButton(
-                flashMode: state.flashMode,
-                onToggle: () =>
-                    ref.read(cameraProvider.notifier).toggleFlashMode(),
+      body: GestureDetector(
+        onScaleStart: _handleScaleStart,
+        onScaleUpdate: _handleScaleUpdate,
+        onScaleEnd: _handleScaleEnd,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            CameraPreviewWidget(controller: state.controller!),
+
+            // Zoom level indicator (center of screen)
+            if (_showZoomIndicator)
+              ZoomLevelIndicator(zoomLevel: state.currentZoom),
+
+            // Flash toggle button - top left
+            Positioned(
+              top: 48,
+              left: 16,
+              child: SafeArea(
+                child: FlashButton(
+                  flashMode: state.flashMode,
+                  onToggle: () =>
+                      ref.read(cameraProvider.notifier).toggleFlashMode(),
+                ),
               ),
             ),
-          ),
-          // Camera switch button - top right
-          Positioned(
-            top: 48,
-            right: 16,
-            child: SafeArea(
-              child: CameraSwitchButton(
-                onSwitch: () =>
-                    ref.read(cameraProvider.notifier).switchCamera(),
+            // Camera switch button - top right
+            Positioned(
+              top: 48,
+              right: 16,
+              child: SafeArea(
+                child: CameraSwitchButton(
+                  onSwitch: () =>
+                      ref.read(cameraProvider.notifier).switchCamera(),
+                ),
               ),
             ),
-          ),
-          // Shutter and video controls - bottom center
-          Positioned(
-            bottom: 32,
-            left: 0,
-            right: 0,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                ShutterButton(
-                  onTap: () async {
-                    final path = await ref
-                        .read(cameraProvider.notifier)
-                        .capturePhoto(settings);
-                    if (!mounted) return;
-                    if (path != null) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('Saved: $path')),
-                      );
-                    }
+            // Zoom slider - above shutter button
+            Positioned(
+              bottom: 120,
+              left: 0,
+              right: 0,
+              child: Center(
+                child: ZoomSlider(
+                  currentZoom: state.currentZoom,
+                  minZoom: state.minZoom,
+                  maxZoom: state.maxZoom,
+                  onZoomChanged: (zoom) {
+                    ref.read(cameraProvider.notifier).setZoom(zoom);
+                    setState(() {
+                      _showZoomIndicator = true;
+                    });
+                    // Hide after delay
+                    Future.delayed(const Duration(milliseconds: 100), () {
+                      if (mounted) {
+                        setState(() {
+                          _showZoomIndicator = false;
+                        });
+                      }
+                    });
                   },
                 ),
-                const SizedBox(width: 24),
-                _VideoButton(
-                  isRecording: state.isRecording,
-                  onStart: () =>
-                      ref.read(cameraProvider.notifier).startVideo(settings),
-                  onStop: () => ref.read(cameraProvider.notifier).stopVideo(),
-                ),
-              ],
+              ),
             ),
-          ),
-        ],
+            // Shutter and video controls - bottom center
+            Positioned(
+              bottom: 32,
+              left: 0,
+              right: 0,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  ShutterButton(
+                    onTap: () async {
+                      final path = await ref
+                          .read(cameraProvider.notifier)
+                          .capturePhoto(settings);
+                      if (!mounted) return;
+                      if (path != null) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('Saved: $path')),
+                        );
+                      }
+                    },
+                  ),
+                  const SizedBox(width: 24),
+                  _VideoButton(
+                    isRecording: state.isRecording,
+                    onStart: () =>
+                        ref.read(cameraProvider.notifier).startVideo(settings),
+                    onStop: () => ref.read(cameraProvider.notifier).stopVideo(),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

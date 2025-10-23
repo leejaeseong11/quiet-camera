@@ -4,7 +4,7 @@ import '../core/utils/logger.dart';
 
 class SilentShutterNative {
   static const MethodChannel _channel = MethodChannel('com.quietcamera/silent');
-  
+
   /// Capture a photo silently
   Future<String> capturePhoto({
     required int quality,
@@ -13,7 +13,7 @@ class SilentShutterNative {
   }) async {
     try {
       Logger.debug('Calling native capturePhoto', tag: 'SilentShutter');
-      
+
       final result = await _channel.invokeMethod<String>(
         'takeSilentPhoto',
         {
@@ -22,11 +22,11 @@ class SilentShutterNative {
           'resolution': resolution,
         },
       );
-      
+
       if (result == null) {
         throw app_exceptions.CameraException('No result from native capture');
       }
-      
+
       Logger.info('Photo captured: $result', tag: 'SilentShutter');
       return result;
     } on PlatformException catch (e) {
@@ -48,7 +48,7 @@ class SilentShutterNative {
       throw app_exceptions.CameraException('Failed to capture photo: $e');
     }
   }
-  
+
   /// Start recording video silently
   Future<String> startSilentVideo({
     required String resolution,
@@ -57,7 +57,7 @@ class SilentShutterNative {
   }) async {
     try {
       Logger.debug('Calling native startSilentVideo', tag: 'SilentShutter');
-      
+
       final result = await _channel.invokeMethod<String>(
         'startSilentVideo',
         {
@@ -66,11 +66,12 @@ class SilentShutterNative {
           'recordAudio': recordAudio,
         },
       );
-      
+
       if (result == null) {
-        throw app_exceptions.CameraException('No result from native video start');
+        throw app_exceptions.CameraException(
+            'No result from native video start');
       }
-      
+
       Logger.info('Video recording started: $result', tag: 'SilentShutter');
       return result;
     } on PlatformException catch (e) {
@@ -92,18 +93,19 @@ class SilentShutterNative {
       throw app_exceptions.CameraException('Failed to start video: $e');
     }
   }
-  
+
   /// Stop recording video
   Future<String> stopSilentVideo() async {
     try {
       Logger.debug('Calling native stopSilentVideo', tag: 'SilentShutter');
-      
+
       final result = await _channel.invokeMethod<String>('stopSilentVideo');
-      
+
       if (result == null) {
-        throw app_exceptions.CameraException('No result from native video stop');
+        throw app_exceptions.CameraException(
+            'No result from native video stop');
       }
-      
+
       Logger.info('Video recording stopped: $result', tag: 'SilentShutter');
       return result;
     } on PlatformException catch (e) {
@@ -125,7 +127,7 @@ class SilentShutterNative {
       throw app_exceptions.CameraException('Failed to stop video: $e');
     }
   }
-  
+
   /// Test the platform channel connection
   Future<bool> testConnection() async {
     try {
@@ -134,6 +136,34 @@ class SilentShutterNative {
     } catch (e) {
       Logger.error('Failed to test connection', tag: 'SilentShutter', error: e);
       return false;
+    }
+  }
+
+  /// Mute system sounds before capture (Android only)
+  Future<void> muteSystemSounds() async {
+    try {
+      Logger.debug('Muting system sounds', tag: 'SilentShutter');
+      await _channel.invokeMethod<void>('muteSystemSounds');
+    } on PlatformException catch (e) {
+      Logger.warning('Failed to mute sounds: ${e.message}',
+          tag: 'SilentShutter');
+      // Non-critical, continue anyway
+    } catch (e) {
+      Logger.warning('Failed to mute sounds: $e', tag: 'SilentShutter');
+    }
+  }
+
+  /// Restore system sounds after capture (Android only)
+  Future<void> restoreSystemSounds() async {
+    try {
+      Logger.debug('Restoring system sounds', tag: 'SilentShutter');
+      await _channel.invokeMethod<void>('restoreSystemSounds');
+    } on PlatformException catch (e) {
+      Logger.warning('Failed to restore sounds: ${e.message}',
+          tag: 'SilentShutter');
+      // Non-critical, continue anyway
+    } catch (e) {
+      Logger.warning('Failed to restore sounds: $e', tag: 'SilentShutter');
     }
   }
 }

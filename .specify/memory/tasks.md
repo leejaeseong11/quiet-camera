@@ -297,28 +297,35 @@
 ### Week 8: 갤러리 뷰어
 
 #### ✅ 8.1 썸네일 그리드 (Day 1-2)
-- [ ] photo_manager 통합
-  - [ ] AssetPathEntity로 앨범 접근
-  - [ ] AssetEntity로 사진/비디오 읽기
-- [ ] 무한 스크롤 구현
-  - [ ] ListView.builder 사용
-  - [ ] 페이지네이션 (100개씩 로드)
-- [ ] 사진/비디오 구분 표시
-  - [ ] 비디오: 재생 아이콘, 길이 표시
-  - [ ] 사진: 썸네일만
+- [x] photo_manager 통합
+  - [x] AssetPathEntity로 앨범 접근
+  - [x] AssetEntity로 사진/비디오 읽기
+- [x] 무한 스크롤 구현
+  - [x] ListView.builder 사용
+  - [x] 페이지네이션 (100개씩 로드)
+- [x] 사진/비디오 구분 표시
+  - [x] 비디오: 재생 아이콘, 길이 표시
+  - [x] 사진: 썸네일만
+- [x] 카메라 화면에 최근 사진 미리보기 추가
+  - [x] lib/features/gallery/presentation/widgets/gallery_thumbnail.dart
+  - [x] 좌측 하단 60x60pt 썸네일
+  - [x] 탭하면 갤러리 뷰 열기
 
 #### ✅ 8.2 전체 화면 뷰어 (Day 3-4)
-- [ ] 이미지 줌/팬
-  - [ ] InteractiveViewer 사용
-  - [ ] 핀치 줌 (1x ~ 5x)
-  - [ ] 팬 제스처
-- [ ] 비디오 플레이어
-  - [ ] video_player 패키지 사용
-  - [ ] 재생/일시정지 컨트롤
-  - [ ] 탐색 바 (seek bar)
-- [ ] 스와이프 네비게이션
-  - [ ] 좌우 스와이프로 이전/다음 사진
-  - [ ] PageView 사용
+- [x] 이미지 줌/팬
+  - [x] InteractiveViewer 사용
+  - [x] 핀치 줌 (1x ~ 5x)
+  - [x] 팬 제스처
+- [x] 비디오 플레이어
+  - [x] video_player 패키지 사용
+  - [x] 재생/일시정지 컨트롤
+  - [x] 탐색 바 (seek bar)
+- [x] 스와이프 네비게이션
+  - [x] 좌우 스와이프로 이전/다음 사진
+  - [x] PageView 사용
+- [x] 그리드 뷰 추가
+  - [x] GridView 3열 레이아웃
+  - [x] 썸네일 탭하면 전체 화면으로
 
 #### ✅ 8.3 공유 및 삭제 (Day 5)
 - [ ] iOS 공유 시트

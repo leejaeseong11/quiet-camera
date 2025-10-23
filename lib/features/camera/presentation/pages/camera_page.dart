@@ -10,6 +10,9 @@ import '../widgets/camera_switch_button.dart';
 import '../widgets/zoom_slider.dart';
 import '../widgets/zoom_level_indicator.dart';
 import '../../../camera/domain/entities/camera_settings.dart' as domain;
+import '../../../gallery/presentation/widgets/gallery_thumbnail.dart';
+import '../../../gallery/presentation/pages/gallery_view_page.dart';
+import '../../../gallery/presentation/providers/latest_asset_provider.dart';
 
 class CameraPage extends ConsumerStatefulWidget {
   const CameraPage({super.key});
@@ -27,6 +30,7 @@ class _CameraPageState extends ConsumerState<CameraPage> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(cameraProvider.notifier).initialize();
+      ref.read(latestAssetProvider.notifier).loadLatestAsset();
     });
   }
 
@@ -153,6 +157,33 @@ class _CameraPageState extends ConsumerState<CameraPage> {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
+                  // Gallery thumbnail - left side
+                  Expanded(
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: Padding(
+                        padding: const EdgeInsets.only(left: 32),
+                        child: Consumer(
+                          builder: (context, ref, child) {
+                            final latestAsset = ref.watch(latestAssetProvider);
+                            return GalleryThumbnail(
+                              latestAsset: latestAsset,
+                              onTap: () {
+                                Navigator.of(context).push(
+                                  MaterialPageRoute(
+                                    builder: (context) =>
+                                        const GalleryViewPage(),
+                                  ),
+                                );
+                              },
+                            );
+                          },
+                        ),
+                      ),
+                    ),
+                  ),
+
+                  // Shutter button - center
                   ShutterButton(
                     onTap: () async {
                       final path = await ref
@@ -160,18 +191,34 @@ class _CameraPageState extends ConsumerState<CameraPage> {
                           .capturePhoto(settings);
                       if (!mounted) return;
                       if (path != null) {
+                        // Refresh gallery thumbnail
+                        ref.read(latestAssetProvider.notifier).refresh();
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(content: Text('Saved: $path')),
                         );
                       }
                     },
                   ),
-                  const SizedBox(width: 24),
-                  _VideoButton(
-                    isRecording: state.isRecording,
-                    onStart: () =>
-                        ref.read(cameraProvider.notifier).startVideo(settings),
-                    onStop: () => ref.read(cameraProvider.notifier).stopVideo(),
+
+                  // Video button - right side
+                  Expanded(
+                    child: Align(
+                      alignment: Alignment.centerRight,
+                      child: Padding(
+                        padding: const EdgeInsets.only(right: 32),
+                        child: _VideoButton(
+                          isRecording: state.isRecording,
+                          onStart: () => ref
+                              .read(cameraProvider.notifier)
+                              .startVideo(settings),
+                          onStop: () async {
+                            await ref.read(cameraProvider.notifier).stopVideo();
+                            // Refresh gallery thumbnail after video
+                            ref.read(latestAssetProvider.notifier).refresh();
+                          },
+                        ),
+                      ),
+                    ),
                   ),
                 ],
               ),

@@ -90,6 +90,29 @@ class _ZoomSliderState extends ConsumerState<ZoomSlider>
       return const SizedBox.shrink();
     }
 
+    // If camera doesn't support zoom, show a message
+    if (widget.minZoom >= widget.maxZoom ||
+        effectiveMaxZoom <= widget.minZoom) {
+      return FadeTransition(
+        opacity: _fadeAnimation,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          decoration: BoxDecoration(
+            color: Colors.black.withOpacity(0.7),
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: const Text(
+            'Zoom not available',
+            style: TextStyle(
+              color: Colors.white70,
+              fontSize: 12,
+              fontFamily: 'SF Pro',
+            ),
+          ),
+        ),
+      );
+    }
+
     return FadeTransition(
       opacity: _fadeAnimation,
       child: IgnorePointer(

@@ -126,6 +126,24 @@ class _CameraPageState extends ConsumerState<CameraPage> {
             if (_showZoomIndicator)
               ZoomLevelIndicator(zoomLevel: state.currentZoom),
 
+            // DEBUG: Show zoom range info
+            Positioned(
+              top: 80,
+              left: 0,
+              right: 0,
+              child: SafeArea(
+                child: Container(
+                  padding: const EdgeInsets.all(8),
+                  color: Colors.black54,
+                  child: Text(
+                    'Zoom: ${state.currentZoom.toStringAsFixed(1)}x | Range: ${state.minZoom.toStringAsFixed(1)}-${state.maxZoom.toStringAsFixed(1)}',
+                    style: const TextStyle(color: Colors.yellow, fontSize: 12),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              ),
+            ),
+
             // Recording timer - top center
             Positioned(
               top: 48,
@@ -161,7 +179,7 @@ class _CameraPageState extends ConsumerState<CameraPage> {
                 ),
               ),
             ),
-            // Zoom slider - above shutter button (auto-hide)
+            // Zoom slider - above shutter button (ALWAYS VISIBLE FOR TESTING)
             Positioned(
               bottom: 120,
               left: 0,
@@ -171,7 +189,8 @@ class _CameraPageState extends ConsumerState<CameraPage> {
                   currentZoom: state.currentZoom,
                   minZoom: state.minZoom,
                   maxZoom: state.maxZoom,
-                  isVisible: _showZoomSlider,
+                  isVisible:
+                      true, // TODO: Change back to _showZoomSlider after testing
                   onZoomChanged: (zoom) {
                     ref.read(cameraProvider.notifier).setZoom(zoom);
                     _showZoomUI();

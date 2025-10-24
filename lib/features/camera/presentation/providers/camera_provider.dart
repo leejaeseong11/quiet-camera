@@ -139,14 +139,31 @@ class CameraNotifier extends StateNotifier<CameraState> {
         back,
         ResolutionPreset.max,
         enableAudio: true,
+        imageFormatGroup:
+            ImageFormatGroup.jpeg, // Ensure JPEG format for compatibility
       );
       await controller.initialize();
 
-      // Get zoom capabilities
-      final minZoom = await controller.getMinZoomLevel();
-      final maxZoom = await controller.getMaxZoomLevel();
+      // Configure camera for optimal image quality
+      try {
+        // Set exposure mode to auto for better brightness
+        await controller.setExposureMode(ExposureMode.auto);
+        // Set focus mode to auto
+        await controller.setFocusMode(FocusMode.auto);
+      } catch (e) {
+        Logger.warning('Failed to set camera modes: $e', tag: 'Camera');
+      }
 
-      Logger.info('Camera zoom capabilities: min=$minZoom, max=$maxZoom',
+      // Get zoom capabilities and enforce our limits (0.5x to 15x)
+      final deviceMinZoom = await controller.getMinZoomLevel();
+      final deviceMaxZoom = await controller.getMaxZoomLevel();
+
+      // Clamp to our desired range: 0.5x minimum, 15x maximum
+      final minZoom = (deviceMinZoom > 0.5) ? deviceMinZoom : 0.5;
+      final maxZoom = (deviceMaxZoom < 15.0) ? deviceMaxZoom : 15.0;
+
+      Logger.info(
+          'Camera zoom: device=($deviceMinZoom-$deviceMaxZoom), clamped=($minZoom-$maxZoom)',
           tag: 'Camera');
 
       state = state.copyWith(
@@ -197,12 +214,28 @@ class CameraNotifier extends StateNotifier<CameraState> {
         targetCamera,
         ResolutionPreset.max,
         enableAudio: true,
+        imageFormatGroup:
+            ImageFormatGroup.jpeg, // Ensure JPEG format for compatibility
       );
       await controller.initialize();
 
-      // Get zoom capabilities
-      final minZoom = await controller.getMinZoomLevel();
-      final maxZoom = await controller.getMaxZoomLevel();
+      // Configure camera for optimal image quality
+      try {
+        // Set exposure mode to auto for better brightness
+        await controller.setExposureMode(ExposureMode.auto);
+        // Set focus mode to auto
+        await controller.setFocusMode(FocusMode.auto);
+      } catch (e) {
+        Logger.warning('Failed to set camera modes: $e', tag: 'Camera');
+      }
+
+      // Get zoom capabilities and enforce our limits (0.5x to 15x)
+      final deviceMinZoom = await controller.getMinZoomLevel();
+      final deviceMaxZoom = await controller.getMaxZoomLevel();
+
+      // Clamp to our desired range: 0.5x minimum, 15x maximum
+      final minZoom = (deviceMinZoom > 0.5) ? deviceMinZoom : 0.5;
+      final maxZoom = (deviceMaxZoom < 15.0) ? deviceMaxZoom : 15.0;
 
       state = state.copyWith(
         description: targetCamera,
@@ -225,11 +258,39 @@ class CameraNotifier extends StateNotifier<CameraState> {
 
       Logger.debug('Starting photo capture', tag: 'Camera');
 
+      // Apply flash mode to camera controller before capture
+      final controller = state.controller!;
+      try {
+        switch (state.flashMode) {
+          case domain.FlashMode.off:
+            await controller.setFlashMode(FlashMode.off);
+            break;
+          case domain.FlashMode.on:
+            await controller.setFlashMode(FlashMode.always);
+            break;
+          case domain.FlashMode.auto:
+            await controller.setFlashMode(FlashMode.auto);
+            break;
+        }
+      } catch (e) {
+        Logger.warning('Failed to set flash mode: $e', tag: 'Camera');
+      }
+
       // Mute system sounds before capture (Android only)
       await _silent.muteSystemSounds();
 
-      // Use Flutter camera plugin to take picture
-      final image = await state.controller!.takePicture();
+      // Optionally lock capture orientation to preserve orientation in EXIF
+      try {
+        await controller.lockCaptureOrientation();
+      } catch (_) {}
+
+      // Use Flutter camera plugin to take picture with high quality settings
+      final image = await controller.takePicture();
+
+      // Unlock orientation after capture
+      try {
+        await controller.unlockCaptureOrientation();
+      } catch (_) {}
 
       // Restore system sounds after capture
       await _silent.restoreSystemSounds();
@@ -271,19 +332,45 @@ class CameraNotifier extends StateNotifier<CameraState> {
       if (!state.isInitialized ||
           state.isRecording ||
           state.controller == null) {
+        Logger.warning(
+            'Cannot start video: initialized=${state.isInitialized}, recording=${state.isRecording}',
+            tag: 'Camera');
         return null;
       }
 
       Logger.debug('Starting video recording', tag: 'Camera');
 
+      // Apply settings to camera controller before recording
+      final controller = state.controller!;
+      try {
+        switch (state.flashMode) {
+          case domain.FlashMode.off:
+            await controller.setFlashMode(FlashMode.off);
+            break;
+          case domain.FlashMode.on:
+            await controller.setFlashMode(FlashMode.torch);
+            break;
+          case domain.FlashMode.auto:
+            await controller.setFlashMode(FlashMode.auto);
+            break;
+        }
+      } catch (e) {
+        Logger.warning('Failed to set flash mode for video: $e', tag: 'Camera');
+      }
+
       // Mute system sounds (Android only)
       await _silent.muteSystemSounds();
 
+      // Lock orientation during recording to maintain consistent orientation
+      try {
+        await controller.lockCaptureOrientation();
+      } catch (_) {}
+
       // Start recording with Flutter camera plugin
-      await state.controller!.startVideoRecording();
+      await controller.startVideoRecording();
 
       state = state.copyWith(isRecording: true);
-      Logger.info('Video recording started', tag: 'Camera');
+      Logger.info('Video recording started successfully', tag: 'Camera');
       return 'recording'; // Placeholder path until we stop
     } catch (e, st) {
       Logger.error('Failed to start video recording',
@@ -299,20 +386,35 @@ class CameraNotifier extends StateNotifier<CameraState> {
 
   Future<String?> stopVideo() async {
     try {
-      if (!state.isRecording || state.controller == null) return null;
+      if (!state.isRecording || state.controller == null) {
+        Logger.warning('Cannot stop video: recording=${state.isRecording}',
+            tag: 'Camera');
+        return null;
+      }
 
       Logger.debug('Stopping video recording', tag: 'Camera');
 
       // Stop recording
       final video = await state.controller!.stopVideoRecording();
 
+      // Unlock orientation after recording
+      try {
+        await state.controller!.unlockCaptureOrientation();
+      } catch (_) {}
+
       // Restore system sounds
       await _silent.restoreSystemSounds();
 
       Logger.info('Video saved: ${video.path}', tag: 'Camera');
 
-      // Save to gallery
-      await _gallery.saveVideo(video.path);
+      // Save to gallery in background to avoid blocking UI
+      try {
+        await _gallery.saveVideo(video.path);
+        Logger.info('Video saved to gallery successfully', tag: 'Camera');
+      } catch (e) {
+        Logger.error('Failed to save video to gallery: $e', tag: 'Camera');
+        // Don't fail the whole operation if gallery save fails
+      }
 
       state = state.copyWith(isRecording: false, lastCapturePath: video.path);
       return video.path;

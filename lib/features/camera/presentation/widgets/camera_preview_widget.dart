@@ -11,15 +11,74 @@ class CameraPreviewWidget extends StatelessWidget {
       return const Center(child: CircularProgressIndicator());
     }
 
-    // Keep aspect ratio like iOS camera (full-screen crop on tall phones)
-    final preview = CameraPreview(controller);
-    return FittedBox(
-      fit: BoxFit.cover,
-      child: SizedBox(
-        width: controller.value.previewSize?.height ?? 1080, // swapped
-        height: controller.value.previewSize?.width ?? 1920,
-        child: preview,
+    final size = MediaQuery.of(context).size;
+
+    // Use 3:4 aspect ratio for portrait (standard smartphone photo ratio)
+    // This means height is 4/3 of width (taller than wide in portrait mode)
+    const targetAspectRatio = 3.0 / 4.0; // width:height = 3:4 for portrait
+
+    // Calculate preview dimensions
+    double previewWidth = size.width;
+    double previewHeight =
+        size.width / targetAspectRatio; // height = width * (4/3)
+
+    // If calculated height exceeds screen height, adjust based on height
+    if (previewHeight > size.height) {
+      previewHeight = size.height;
+      previewWidth = size.height * targetAspectRatio; // width = height * (3/4)
+    }
+
+    return Container(
+      width: size.width,
+      height: size.height,
+      color: Colors.black, // Black background for bars
+      child: Center(
+        child: SizedBox(
+          width: previewWidth,
+          height: previewHeight,
+          child: ClipRect(
+            child: OverflowBox(
+              alignment: Alignment.center,
+              child: FittedBox(
+                fit: BoxFit.cover,
+                child: SizedBox(
+                  width: previewWidth,
+                  height: previewWidth / (controller.value.aspectRatio),
+                  child: CameraPreview(controller),
+                ),
+              ),
+            ),
+          ),
+        ),
       ),
     );
+  }
+
+  /// Calculate the actual preview bounds within the screen
+  /// This accounts for aspect ratio and returns the Rect where the preview is displayed
+  static Rect calculatePreviewBounds({
+    required Size screenSize,
+    required Size previewSize,
+  }) {
+    // Use 3:4 aspect ratio for portrait (standard smartphone photo ratio)
+    const targetAspectRatio = 3.0 / 4.0; // width:height = 3:4 for portrait
+
+    // Calculate preview dimensions
+    double previewWidth = screenSize.width;
+    double previewHeight =
+        screenSize.width / targetAspectRatio; // height = width * (4/3)
+
+    // If calculated height exceeds screen height, adjust based on height
+    if (previewHeight > screenSize.height) {
+      previewHeight = screenSize.height;
+      previewWidth =
+          screenSize.height * targetAspectRatio; // width = height * (3/4)
+    }
+
+    // Calculate offset to center the preview
+    final left = (screenSize.width - previewWidth) / 2;
+    final top = (screenSize.height - previewHeight) / 2;
+
+    return Rect.fromLTWH(left, top, previewWidth, previewHeight);
   }
 }

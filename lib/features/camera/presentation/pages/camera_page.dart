@@ -132,6 +132,9 @@ class _CameraPageState extends ConsumerState<CameraPage> {
       flashMode: state.flashMode,
     );
 
+    // Screen and safe area (controls will be placed on black bars)
+    final safeArea = MediaQuery.of(context).padding;
+
     return Scaffold(
       backgroundColor: Colors.black,
       body: GestureDetector(
@@ -151,72 +154,62 @@ class _CameraPageState extends ConsumerState<CameraPage> {
             if (state.countdownSeconds != null)
               TimerCountdown(seconds: state.countdownSeconds!),
 
-            // Mode selector - top center
+            // Mode selector - place on top black bar (outside preview)
             Positioned(
-              top: 48,
+              top: safeArea.top + 12,
               left: 0,
               right: 0,
-              child: SafeArea(
-                child: Center(
-                  child: ModeSelector(),
-                ),
+              child: Center(
+                child: ModeSelector(),
               ),
             ),
 
-            // Recording timer - below mode selector
+            // Recording timer - below mode selector on top black bar
             Positioned(
-              top: 100,
+              top: safeArea.top + 56,
               left: 0,
               right: 0,
-              child: SafeArea(
-                child: Center(
-                  child: RecordingTimer(isRecording: state.isRecording),
-                ),
+              child: Center(
+                child: RecordingTimer(isRecording: state.isRecording),
               ),
             ),
 
-            // Flash toggle button - top left
+            // Flash toggle button - top left on black bar
             Positioned(
-              top: 48,
+              top: safeArea.top + 12,
               left: 16,
-              child: SafeArea(
-                child: Row(
-                  children: [
-                    FlashButton(
-                      flashMode: state.flashMode,
-                      onToggle: () =>
-                          ref.read(cameraProvider.notifier).toggleFlashMode(),
-                    ),
-                  ],
-                ),
+              child: FlashButton(
+                flashMode: state.flashMode,
+                onToggle: () =>
+                    ref.read(cameraProvider.notifier).toggleFlashMode(),
               ),
             ),
-            // Camera switch button - top right
+
+            // Camera switch button - top right on black bar
             Positioned(
-              top: 48,
+              top: safeArea.top + 12,
               right: 16,
-              child: SafeArea(
-                child: CameraSwitchButton(
-                  onSwitch: () =>
-                      ref.read(cameraProvider.notifier).switchCamera(),
-                ),
+              child: CameraSwitchButton(
+                onSwitch: () =>
+                    ref.read(cameraProvider.notifier).switchCamera(),
               ),
             ),
-            // Zoom scrubber - appears on interaction only
+            // Zoom scrubber - appears on interaction only, within preview bounds
             if (state.isZoomUIVisible)
               Positioned(
-                bottom: 140,
-                left: 0,
-                right: 0,
+                // Place just above the shutter row on the bottom black bar
+                bottom: safeArea.bottom + 120,
+                left: 16,
+                right: 16,
                 child: Center(
                   child: ZoomScrubber(
                     onInteract: _showZoomTemporarily,
                   ),
                 ),
               ),
-            // Shutter and video controls - bottom center
+            // Shutter and video controls - bottom center on bottom black bar
             Positioned(
-              bottom: 32,
+              bottom: safeArea.bottom + 24,
               left: 0,
               right: 0,
               child: Row(
@@ -227,7 +220,7 @@ class _CameraPageState extends ConsumerState<CameraPage> {
                     child: Align(
                       alignment: Alignment.centerLeft,
                       child: Padding(
-                        padding: const EdgeInsets.only(left: 32),
+                        padding: const EdgeInsets.only(left: 16),
                         child: Consumer(
                           builder: (context, ref, child) {
                             final latestAsset = ref.watch(latestAssetProvider);
@@ -256,7 +249,7 @@ class _CameraPageState extends ConsumerState<CameraPage> {
                     child: Align(
                       alignment: Alignment.centerRight,
                       child: Padding(
-                        padding: const EdgeInsets.only(right: 32),
+                        padding: const EdgeInsets.only(right: 16),
                         child: TimerButton(
                           timerSeconds: state.timerSeconds,
                           onToggle: () =>
@@ -338,16 +331,18 @@ class _ModeAwareShutter extends ConsumerWidget {
           final path = await notifier.capturePhotoWithTimer(settings);
           if (context.mounted && path != null) {
             ref.read(latestAssetProvider.notifier).refresh();
-            ScaffoldMessenger.of(context)
-                .showSnackBar(SnackBar(content: Text('Saved: $path')));
+            // Snackbar removed - silent save without popup
           }
         } else {
           // Video mode: toggle start/stop
           if (!state.isRecording) {
             await notifier.startVideo(settings);
           } else {
-            await notifier.stopVideo();
-            ref.read(latestAssetProvider.notifier).refresh();
+            final path = await notifier.stopVideo();
+            if (context.mounted && path != null) {
+              ref.read(latestAssetProvider.notifier).refresh();
+              // Snackbar removed - silent save without popup
+            }
           }
         }
       },
